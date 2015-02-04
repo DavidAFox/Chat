@@ -10,6 +10,7 @@ import (
 	"os"
 	"container/list"
 	"log"
+	"sync"
 )
 
 
@@ -17,7 +18,7 @@ type Client struct {
 	Name string
 	Connection net.Conn
 	Room *Room
-	Rooms *list.List
+	Rooms *RoomList
 	ChatLog *os.File
 }
 
@@ -32,6 +33,8 @@ func (cl Client) Equals (other *Client) bool {
 
 //Leave removes cl from current room and closes any rooms left empty
 func (cl *Client) Leave () {
+	cl.Rooms.Lock()
+	defer cl.Rooms.Unlock()
 	if cl.Room != nil {
 		cl.Room.Tell(fmt.Sprintf("%v leaves the room.",cl.Name))
 		for entry := cl.Room.Clients.Front(); entry != nil; entry = entry.Next() { //Remove the client from room
@@ -46,7 +49,6 @@ func (cl *Client) Leave () {
 		}
 		cl.Room = nil
 	}
-	return
 }
 
 //Log writes the string to the chat log
@@ -68,7 +70,8 @@ func (cl Client) Send (m Message) {
 		_, err := io.WriteString(i.Value.(*Client).Connection,fmt.Sprint(m))
 		if err != nil {
 			log.Println(err)
-			cl.Room.Clients.Remove(i)//remove the client that caused the error from the room
+			i.Value.(*Client).Leave()
+//			cl.Room.Clients.Remove(i)//remove the client that caused the error from the room
 		}
 	}
 	cl.Log(fmt.Sprint(m))
@@ -88,6 +91,8 @@ func (cl *Client) Quit() {
 //join adds a client to rm or creats a room if it doesn't exist
 func (cl *Client) Join (rm string) {
 	cl.Leave()//leave old room first
+	cl.Rooms.Lock()
+	defer cl.Rooms.Unlock()
 	exists := false
 	for entry := cl.Rooms.Front(); entry != nil; entry = entry.Next() {
 		if entry.Value.(*Room).Name == rm {//if the room exists add the client to the room
@@ -97,6 +102,7 @@ func (cl *Client) Join (rm string) {
 		}
 	}
 	if exists == false {
+		fmt.Print("Room not found making Room")
 		newRoom := new(Room) //make a new room
 		newRoom.Name = rm
 		newRoom.Clients = list.New()
@@ -105,7 +111,6 @@ func (cl *Client) Join (rm string) {
 		cl.Rooms.PushBack(cl.Room)//add the room to the room list
 	}
 	cl.Room.Tell(fmt.Sprintf("%v has joined the room.",cl.Name))
-	return
 }
 
 //Help tells the client a list of valid commands
@@ -124,7 +129,10 @@ func (cl Client) Tell(msg string) {
 	}
 }
 
-
+type RoomList struct {
+	*list.List
+	*sync.Mutex
+}
 
 type Room struct {
 	Name string
@@ -179,7 +187,7 @@ func readString(conn net.Conn) (string, error) {
 }
 
 //handleConnection handles overall connection
-func handleConnection(conn net.Conn, rooms *list.List,chl *os.File) {
+func handleConnection(conn net.Conn, rooms *RoomList,chl *os.File) {
 	_, err := io.WriteString(conn, "What is your name? ")//set up the client
 	if err != nil {
 		log.Println("Error Writing",err)
@@ -237,7 +245,7 @@ func configure (filename string) (c *config) {
 
 //server listens for connections and sends them to handleConnection()
 func server (c *config) {
-	rooms := list.New()
+	rooms := &RoomList{list.New(),new(sync.Mutex)}
 	chl,err := os.Create(c.LogFile)
 	defer chl.Close()
 	if err != nil {
