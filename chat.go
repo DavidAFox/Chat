@@ -11,12 +11,14 @@ import (
 	"container/list"
 	"log"
 	"sync"
+	"sort"
 )
 
 
 type Client struct {
 	Name string
 	Connection net.Conn
+	Blocked *list.List
 	Room *Room
 	Rooms *RoomList
 	ChatLog *os.File
@@ -30,7 +32,43 @@ func (cl Client) Equals (other *Client) bool {
 		return false
 	}
 }
-
+func (cl Client) IsBlocked(other *Client) (blocked bool) {
+	blocked = false
+	for i := cl.Blocked.Front(); i != nil; i = i.Next() {
+		if i.Value == other.Name {
+			blocked = true
+		}
+	}
+	return
+}
+func (cl *Client) UnBlock(name []string) {
+	if len(name) == 0 {
+		cl.Tell("Must enter user to unblock")
+		return
+	}
+	clname:= strings.Join(name, " ")
+	found := false
+	for i := cl.Blocked.Front(); i != nil; i = i.Next() {
+		if i.Value == clname {
+			cl.Blocked.Remove(i)
+			found = true
+		}
+	}
+	if found {
+		cl.Tell(fmt.Sprintf("No longer blocking %v.", clname))
+	} else {
+		cl.Tell(fmt.Sprintf("You are not blocking %v.", clname))
+	}
+}
+func (cl *Client) Block (name []string) {
+	if len(name) == 0 {
+		cl.Tell("Must enter user to block")
+		return
+	}
+	clname := strings.Join(name, " ")
+	cl.Blocked.PushBack(clname)
+	cl.Tell(fmt.Sprintf("Now Blocking %v.", clname))
+}
 //Leave removes cl from current room and closes any rooms left empty
 func (cl *Client) Leave () {
 	cl.Rooms.Lock()
@@ -67,16 +105,47 @@ func (cl Client) Send (m Message) {
 		return
 	}
 	for i := cl.Room.Clients.Front();i != nil;i = i.Next() {
-		_, err := io.WriteString(i.Value.(*Client).Connection,fmt.Sprint(m))
-		if err != nil {
-			log.Println(err)
-			i.Value.(*Client).Leave()
-//			cl.Room.Clients.Remove(i)//remove the client that caused the error from the room
+		if !i.Value.(*Client).IsBlocked(&cl) {
+			_, err := io.WriteString(i.Value.(*Client).Connection,fmt.Sprint(m))
+			if err != nil {
+				log.Println(err)
+				i.Value.(*Client).Leave()
+//				cl.Room.Clients.Remove(i)//remove the client that caused the error from the room
+			}
 		}
 	}
 	cl.Log(fmt.Sprint(m))
 	return
 }
+//Who sends to the client a list of all the people in the same room as the client
+func (cl *Client) Who() {
+	if cl.Room == nil {
+		cl.Tell("You're not in a room.  Type /join roomname to join a room or /help for other commands.")
+		return
+	}
+	cl.Tell(fmt.Sprintf("Room: %v",cl.Room.Name))
+	clist := make([]string,0,0)
+	for i:= cl.Room.Clients.Front();i != nil;i = i.Next() {
+		clist = append(clist, i.Value.(*Client).Name)
+	}
+	sort.Strings(clist)
+	for _,i := range clist {
+		cl.Tell(i)
+	}
+}
+
+func (cl *Client) List() {
+	cl.Tell("Rooms:")
+	rlist := make([]string,0,0)
+	for i := cl.Rooms.Front(); i != nil; i = i.Next() {
+		rlist = append(rlist, i.Value.(*Room).Name)
+	}
+	sort.Strings(rlist)
+	for _,i := range rlist {
+		cl.Tell(i)
+	}
+}
+
 
 //Quit logs the client out, removes the client from all rooms, and closes the connection
 func (cl *Client) Quit() {
@@ -89,7 +158,12 @@ func (cl *Client) Quit() {
 }
 
 //join adds a client to rm or creats a room if it doesn't exist
-func (cl *Client) Join (rm string) {
+func (cl *Client) Join (rms []string) {
+	if len(rms) == 0 {
+		cl.Tell("Must enter a Room to join")
+		return
+	}
+	rm := strings.Join(rms, " ")
 	cl.Leave()//leave old room first
 	cl.Rooms.Lock()
 	defer cl.Rooms.Unlock()
@@ -102,7 +176,6 @@ func (cl *Client) Join (rm string) {
 		}
 	}
 	if exists == false {
-		fmt.Print("Room not found making Room")
 		newRoom := new(Room) //make a new room
 		newRoom.Name = rm
 		newRoom.Clients = list.New()
@@ -117,7 +190,11 @@ func (cl *Client) Join (rm string) {
 func (cl Client) Help () {
 	cl.Tell("/quit to quit")
 	cl.Tell("/join roomname to join a room")
-	cl.Tell("/leave to leave current room")
+	cl.Tell("/leave to leave the current room")
+	cl.Tell("/who to see a list of people in the current room")
+	cl.Tell("/list to see a list of the current rooms")
+	cl.Tell("/block name to block messages from a user")
+	cl.Tell("/unblock name to unblock messages from a user")
 	cl.Tell("/help to see a list of commands")
 }
 
@@ -196,7 +273,7 @@ func handleConnection(conn net.Conn, rooms *RoomList,chl *os.File) {
 	if err != nil {
 		log.Println("Error Reading",err)
 	}
-	cl := Client{name,conn,nil,rooms,chl}
+	cl := Client{name,conn,list.New(),nil,rooms,chl}
 	for{
 		input, err := readString(cl.Connection)
 		if err != nil {
@@ -209,16 +286,19 @@ func handleConnection(conn net.Conn, rooms *RoomList,chl *os.File) {
 				cl.Quit()
 				return
 			case "/join":
-				if len(cmd) > 1 {
-					rmName := strings.Join(cmd[1:], " ")
-					cl.Join(rmName)
-				} else {
-					cl.Tell("Must enter channel to join")
-				}
+				cl.Join(cmd[1:])
 			case "/leave":
 				cl.Leave()
 			case "/help":
 				cl.Help()
+			case "/who":
+				cl.Who()
+			case "/list":
+				cl.List()
+			case "/block":
+				cl.Block(cmd[1:])
+			case "/unblock":
+				cl.UnBlock(cmd[1:])
 			default:
 				cl.Tell("Invalid Command Type /help for list of commands")
 			}
