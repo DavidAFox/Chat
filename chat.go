@@ -118,20 +118,43 @@ func (cl Client) Send (m Message) {
 	return
 }
 //Who sends to the client a list of all the people in the same room as the client
-func (cl *Client) Who() {
-	if cl.Room == nil {
-		cl.Tell("You're not in a room.  Type /join roomname to join a room or /help for other commands.")
-		return
+func (cl *Client) Who(rms []string) {
+	var clist []string
+	if len(rms) == 0 {
+		if cl.Room == nil {
+			cl.Tell("You're not in a room.  Type /join roomname to join a room or /help for other commands.")
+			return
+		}
+		clist = cl.Room.Who()
+		cl.Tell(fmt.Sprintf("Room: %v",cl.Room.Name))
+	}else {
+		found := false
+		name := strings.Join(rms, " ")
+		for i := cl.Rooms.Front(); i != nil; i = i.Next() {
+			if i.Value.(*Room).Name == name {
+				clist = i.Value.(*Room).Who()
+				cl.Tell(fmt.Sprintf("Room: %v",i.Value.(*Room).Name))
+				found = true
+				break
+			}
+		}
+		if !found {
+			cl.Tell("Room not found")
+			return
+		}
 	}
-	cl.Tell(fmt.Sprintf("Room: %v",cl.Room.Name))
-	clist := make([]string,0,0)
-	for i:= cl.Room.Clients.Front();i != nil;i = i.Next() {
-		clist = append(clist, i.Value.(*Client).Name)
-	}
-	sort.Strings(clist)
 	for _,i := range clist {
 		cl.Tell(i)
 	}
+}
+
+func (rm *Room) Who() []string {
+	clist := make([]string,0,0)
+	for i:= rm.Clients.Front();i != nil;i = i.Next() {
+		clist = append(clist, i.Value.(*Client).Name)
+	}
+	sort.Strings(clist)
+	return clist
 }
 
 func (cl *Client) List() {
@@ -292,7 +315,7 @@ func handleConnection(conn net.Conn, rooms *RoomList,chl *os.File) {
 			case "/help":
 				cl.Help()
 			case "/who":
-				cl.Who()
+				cl.Who(cmd[1:])
 			case "/list":
 				cl.List()
 			case "/block":
