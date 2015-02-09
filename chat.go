@@ -60,6 +60,7 @@ func (cl *Client) UnBlock(name []string) {
 		cl.Tell(fmt.Sprintf("You are not blocking %v.", clname))
 	}
 }
+
 func (cl *Client) Block (name []string) {
 	if len(name) == 0 {
 		cl.Tell("Must enter user to block")
@@ -69,6 +70,7 @@ func (cl *Client) Block (name []string) {
 	cl.Blocked.PushBack(clname)
 	cl.Tell(fmt.Sprintf("Now Blocking %v.", clname))
 }
+
 //Leave removes cl from current room and closes any rooms left empty
 func (cl *Client) Leave () {
 	cl.Rooms.Lock()
@@ -80,11 +82,7 @@ func (cl *Client) Leave () {
 				cl.Room.Clients.Remove(entry)
 			}
 		}
-		for entry := cl.Rooms.Front(); entry != nil; entry = entry.Next() {//Close any empty rooms
-			if entry.Value.(*Room).Clients.Front() == nil {
-				cl.Rooms.Remove(entry)
-			}
-		}
+		cl.Rooms.CloseEmpty()
 		cl.Room = nil
 	}
 }
@@ -109,8 +107,7 @@ func (cl Client) Send (m Message) {
 			_, err := io.WriteString(i.Value.(*Client).Connection,fmt.Sprint(m))
 			if err != nil {
 				log.Println(err)
-				i.Value.(*Client).Leave()
-//				cl.Room.Clients.Remove(i)//remove the client that caused the error from the room
+				i.Value.(*Client).Leave()//remove the client that caused the error from the room
 			}
 		}
 	}
@@ -128,33 +125,24 @@ func (cl *Client) Who(rms []string) {
 		clist = cl.Room.Who()
 		cl.Tell(fmt.Sprintf("Room: %v",cl.Room.Name))
 	}else {
-		found := false
 		name := strings.Join(rms, " ")
-		for i := cl.Rooms.Front(); i != nil; i = i.Next() {
-			if i.Value.(*Room).Name == name {
-				clist = i.Value.(*Room).Who()
-				cl.Tell(fmt.Sprintf("Room: %v",i.Value.(*Room).Name))
-				found = true
-				break
-			}
-		}
-		if !found {
-			cl.Tell("Room not found")
+		rm := cl.Rooms.FindRoom(name)
+		if rm == nil {
+			cl.Tell("Room not Found")
 			return
 		}
+		clist = rm.Who()
+		cl.Tell(fmt.Sprintf("Room: %v", rm.Name))
 	}
 	for _,i := range clist {
 		cl.Tell(i)
 	}
 }
 
-func (rm *Room) Who() []string {
-	clist := make([]string,0,0)
-	for i:= rm.Clients.Front();i != nil;i = i.Next() {
-		clist = append(clist, i.Value.(*Client).Name)
+func (cl *Client) Cls () {
+	for i := 0; i<100;i++ {
+		cl.Tell("")
 	}
-	sort.Strings(clist)
-	return clist
 }
 
 func (cl *Client) List() {
@@ -186,25 +174,19 @@ func (cl *Client) Join (rms []string) {
 		cl.Tell("Must enter a Room to join")
 		return
 	}
-	rm := strings.Join(rms, " ")
+	name := strings.Join(rms, " ")
 	cl.Leave()//leave old room first
 	cl.Rooms.Lock()
 	defer cl.Rooms.Unlock()
-	exists := false
-	for entry := cl.Rooms.Front(); entry != nil; entry = entry.Next() {
-		if entry.Value.(*Room).Name == rm {//if the room exists add the client to the room
-			exists = true
-			cl.Room = entry.Value.(*Room)
-			entry.Value.(*Room).Clients.PushBack(cl)
-		}
-	}
-	if exists == false {
-		newRoom := new(Room) //make a new room
-		newRoom.Name = rm
-		newRoom.Clients = list.New()
+	rm := cl.Rooms.FindRoom(name)
+	if rm == nil {
+		newRoom := NewRoom(name)
 		cl.Room = newRoom //set the room as the clients room
-		cl.Room.Clients.PushBack(cl)//add the client to the room
-		cl.Rooms.PushBack(cl.Room)//add the room to the room list
+		cl.Room.Clients.PushBack(cl) //add the client to the room
+		cl.Rooms.PushBack(cl.Room) //add the room to the room list
+	} else {
+	cl.Room = rm
+	rm.Clients.PushBack(cl)
 	}
 	cl.Room.Tell(fmt.Sprintf("%v has joined the room.",cl.Name))
 }
@@ -234,9 +216,47 @@ type RoomList struct {
 	*sync.Mutex
 }
 
+//FindRoom returns the first room with name
+func (rml *RoomList) FindRoom (name string) *Room {
+	for i := rml.Front(); i !=nil; i = i.Next() {
+		if i.Value.(*Room).Name == name {
+			return i.Value.(*Room)
+		}
+	}
+	return nil
+}
+
+//CloseEmpty closes all empty rooms
+func (rml *RoomList) CloseEmpty () {
+	for entry := rml.Front(); entry != nil; entry = entry.Next() {//Close any empty rooms
+		if entry.Value.(*Room).Clients.Front() == nil {
+			rml.Remove(entry)
+		}
+	}
+}
+
+
 type Room struct {
 	Name string
 	Clients *list.List
+}
+
+//NewRoom creates a room with name and returns it
+func NewRoom (name string) *Room {
+	newRoom := new(Room)
+	newRoom.Name = name
+	newRoom.Clients = list.New()
+	return newRoom
+}
+
+//Who returns a []string with all the names of the clients in the room sorted
+func (rm *Room) Who() []string {
+	clist := make([]string,0,0)
+	for i:= rm.Clients.Front();i != nil;i = i.Next() {
+		clist = append(clist, i.Value.(*Client).Name)
+	}
+	sort.Strings(clist)
+	return clist
 }
 
 
@@ -262,15 +282,15 @@ func (m Message) String() string {
 	return fmt.Sprintf("%s [%v]: %v\n\r",m.time.Format(layout),m.Sender.Name,m.text)
 }
 
+//newMessage creates a new message
+func newMessage(t string, s Client) Message {
+	return Message{t,time.Now(),s}
+}
+
 type config struct {
 	ListeningIP string
 	ListeningPort string
 	LogFile string
-}
-
-//newMessage creates a new message
-func newMessage(t string, s Client) Message {
-	return Message{t,time.Now(),s}
 }
 
 //readString reads a string from the connection ending with a '\n'
