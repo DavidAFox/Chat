@@ -34,6 +34,7 @@ type ClientHTTP struct {
 	Rooms *RoomList
 	ChatLog *os.File
 	Clients map[string]*ClientHTTP
+	Blocked *list.List
 }
 
 //GetMessage gets all the messages for a client since the last time they were checked and then removes them from their message list.
@@ -41,14 +42,17 @@ func (cl *ClientHTTP) GetMessages (w http.ResponseWriter, rq *http.Request) {
 	m := make([]string, cl.Messages.Len(), cl.Messages.Len())
 	for i,x := cl.Messages.Front(), 0; i != nil; i,x = i.Next(), x+1 {
 		m[x] = fmt.Sprint(i.Value)
-		cl.Messages.Remove(i)
+	}
+	for i,x  := cl.Messages.Front(), cl.Messages.Front(); i != nil; {
+		x = i
+		i = i.Next()
+		cl.Messages.Remove(x)
 	}
 	enc := json.NewEncoder(w)
 	err := enc.Encode(m)
 	if err != nil {
 		log.Println("Error encoding messages: ", err)
 	}
-	cl.ResetTimeOut()
 }
 
 //NewClientHTTP initializes and returns a new client.
@@ -63,7 +67,54 @@ func NewClientHTTP(name string, rooms *RoomList, chl *os.File, m map[string]*Cli
 	cl.Token = NewToken()
 	cl.ChatLog = chl
 	cl.Clients = m
+	cl.Blocked = list.New()
 	return cl
+}
+
+//IsBlocked checks if other is blocked by the client.
+func (cl *ClientHTTP) IsBlocked(other Client) (blocked bool) {
+	blocked = false
+	for i := cl.Blocked.Front(); i != nil; i = i.Next() {
+		if i.Value == other.Name() {
+			blocked = true
+		}
+	}
+	return
+}
+
+//UnBlock removes clients with name in body of req from clients block list.
+func (cl *ClientHTTP) UnBlock(w http.ResponseWriter, rq *http.Request) {
+	dec := json.NewDecoder(rq.Body)
+	var name string
+	err := dec.Decode(&name)
+	if err != nil {
+		log.Println("Error decoding in unblock: ", err)
+	}
+	found := false
+	for i,x := cl.Blocked.Front(), cl.Blocked.Front(); i != nil; {
+		x = i
+		i = i.Next()
+		if x.Value == name {
+			cl.Blocked.Remove(x)
+			found = true
+		}
+	}
+	enc := json.NewEncoder(w)
+	err = enc.Encode(found)
+	if err != nil {
+		log.Println("Error encoding in unblock: ", err)
+	}
+}
+
+//Block adds clients with name matching the body of req to clients block list.
+func (cl *ClientHTTP) Block(w http.ResponseWriter, rq *http.Request) {
+	dec := json.NewDecoder(rq.Body)
+	var name string
+	err := dec.Decode(&name)
+	if err != nil {
+		log.Println("Error decoding in Block: ", err)
+	}
+	cl.Blocked.PushBack(name)
 }
 
 //Name returns the clients name.
@@ -81,6 +132,11 @@ func (cl *ClientHTTP) Equals(other Client) bool {
 
 //Recieve adds the message to the clients message list.
 func (cl *ClientHTTP) Recieve(m Message) {
+	if msg,ok := m.(*clientMessage);ok {
+		if cl.IsBlocked(msg.Sender) {
+			return
+		}
+	}
 	cl.Messages.PushBack(m)
 }
 
@@ -109,7 +165,6 @@ func (cl *ClientHTTP) Send(w http.ResponseWriter, rq *http.Request) {
 	}
 	message := newClientMessage(mtext,cl)
 	cl.Room.Send(message)
-	cl.ResetTimeOut()
 }
 
 //ResetTimeOut resets the clients timeout timer.
@@ -157,7 +212,16 @@ func (cl *ClientHTTP) Who(w http.ResponseWriter, rq *http.Request) {
 	if err != nil {
 		log.Println("Error encoding in who: ",err)
 	}
-	cl.ResetTimeOut()
+}
+
+//List sends a list of the current rooms as a response.
+func (cl *ClientHTTP) List(w http.ResponseWriter, rq *http.Request) {
+	enc := json.NewEncoder(w)
+	list := cl.Rooms.Names()
+	err := enc.Encode(list)
+	if err != nil {
+		log.Println("Error encoding in List: :", err)
+	}
 }
 
 //roomHandler handles the HTTP client requests.
@@ -198,7 +262,9 @@ func (h *roomHandler) GetClient(rq *http.Request) *ClientHTTP{
 		cl := NewClientHTTP(name, h.rooms, h.chl, h.clients)
 		return cl
 	}
-	return h.clients[rq.Header.Get("Authorization")]
+	cl := h.clients[rq.Header.Get("Authorization")]
+	cl.ResetTimeOut()
+	return cl
 }
 
 //ServeHTTP handles requests other than those sent to the REST handler.
@@ -207,6 +273,10 @@ func (h *roomHandler) ServeHTTP (w http.ResponseWriter, rq *http.Request) {
 	cl := h.GetClient(rq)
 	switch path[1] {
 		case "rooms":
+			if len(path) == 3 && path[2] == "list" {
+				cl.List(w, rq)
+				return
+			}
 			if len(path) < 4 {//fix later for more appropriate response
 				log.Println("Error invalid path: ", rq.URL.Path)
 				return
@@ -236,5 +306,17 @@ func (h *roomHandler) ServeHTTP (w http.ResponseWriter, rq *http.Request) {
 				case "POST":
 					cl.Send(w,rq)
 			}
+		case "block":
+			if !h.CheckToken(rq) {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			cl.Block(w,rq)
+		case "unblock":
+			if !h.CheckToken(rq) {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			cl.UnBlock(w,rq)
 	}
 }

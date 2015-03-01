@@ -22,8 +22,8 @@ type Client interface {
 	Recieve(m Message)
 }
 
-//ClientTCP is the telnet version of the client type.
-type ClientTCP struct {
+//ClientTelnet is the telnet version of the client type.
+type ClientTelnet struct {
 	name string
 	Connection net.Conn
 	Blocked *list.List
@@ -33,13 +33,13 @@ type ClientTCP struct {
 }
 
 //Name returns the name of the client.
-func (cl *ClientTCP) Name () string {
+func (cl *ClientTelnet) Name () string {
 	return cl.name
 }
 
 //NewClient creates and returns a new client.
-func NewClientTCP(name string,conn net.Conn, rooms *RoomList, chl *os.File) *ClientTCP {
-	cl := new(ClientTCP)
+func NewClientTelnet(name string,conn net.Conn, rooms *RoomList, chl *os.File) *ClientTelnet {
+	cl := new(ClientTelnet)
 	cl.name = name
 	cl.Connection = conn
 	cl.Blocked = list.New()
@@ -50,15 +50,15 @@ func NewClientTCP(name string,conn net.Conn, rooms *RoomList, chl *os.File) *Cli
 }
 
 //Equals compares two clients to see if they're the same.
-func (cl *ClientTCP) Equals (other Client) bool {
-	if c,ok := other.(*ClientTCP);ok{
+func (cl *ClientTelnet) Equals (other Client) bool {
+	if c,ok := other.(*ClientTelnet);ok{
 		return cl.Name() == c.Name() && cl.Connection == c.Connection
 	}
 	return false
 }
 
 //IsBlocked checks if other is blocked by the client.
-func (cl *ClientTCP) IsBlocked(other Client) (blocked bool) {
+func (cl *ClientTelnet) IsBlocked(other Client) (blocked bool) {
 	blocked = false
 	for i := cl.Blocked.Front(); i != nil; i = i.Next() {
 		if i.Value == other.Name() {
@@ -69,16 +69,18 @@ func (cl *ClientTCP) IsBlocked(other Client) (blocked bool) {
 }
 
 //UnBlock removes clients with name matching the args from clients block list.
-func (cl *ClientTCP) UnBlock(name []string) {
+func (cl *ClientTelnet) UnBlock(name []string) {
 	if len(name) == 0 {
 		cl.Tell("Must enter user to unblock")
 		return
 	}
 	clname:= strings.Join(name, " ")
 	found := false
-	for i := cl.Blocked.Front(); i != nil; i = i.Next() {
-		if i.Value == clname {
-			cl.Blocked.Remove(i)
+	for i, x := cl.Blocked.Front(), cl.Blocked.Front(); i != nil; {
+		x = i
+		i = i.Next()
+		if x.Value == clname {
+			cl.Blocked.Remove(x)
 			found = true
 		}
 	}
@@ -90,7 +92,7 @@ func (cl *ClientTCP) UnBlock(name []string) {
 }
 
 //Block adds clients with name matching the args to clients block list.
-func (cl *ClientTCP) Block (name []string) {
+func (cl *ClientTelnet) Block (name []string) {
 	if len(name) == 0 {
 		cl.Tell("Must enter user to block")
 		return
@@ -101,7 +103,7 @@ func (cl *ClientTCP) Block (name []string) {
 }
 
 //Leave removes cl from current room.
-func (cl *ClientTCP) Leave () {
+func (cl *ClientTelnet) Leave () {
 	if cl.Room != nil {
 		cl.Room.Tell(fmt.Sprintf("%v leaves the room.",cl.Name()))
 		_ = cl.Room.Remove(cl)
@@ -110,7 +112,7 @@ func (cl *ClientTCP) Leave () {
 }
 
 //Log writes the string to the chat log.
-func (cl ClientTCP) Log (s string) {
+func (cl ClientTelnet) Log (s string) {
 	var err error
 	_, err = io.WriteString(cl.ChatLog, s + "\n")
 	if err != nil {
@@ -119,7 +121,7 @@ func (cl ClientTCP) Log (s string) {
 }
 
 //Send sends the message to the clients room.
-func (cl ClientTCP) Send (m Message) {
+func (cl ClientTelnet) Send (m Message) {
 	if cl.Room == nil {
 		cl.Tell("You're not in a room.  Type /join roomname to join a room or /help for other commands.")
 		return
@@ -129,7 +131,7 @@ func (cl ClientTCP) Send (m Message) {
 }
 
 //Recieve takes messages and transmits them to the client
-func (cl *ClientTCP) Recieve (m Message) {
+func (cl *ClientTelnet) Recieve (m Message) {
 	if msg,ok := m.(*clientMessage);ok {
 		if cl.IsBlocked(msg.Sender) {
 			return
@@ -144,7 +146,7 @@ func (cl *ClientTCP) Recieve (m Message) {
 
 /*
 //Refresh clears the clients screen and then sends them all the messages sent in the room they are in.
-func (cl ClientTCP) Refresh () error {
+func (cl ClientTelnet) Refresh () error {
 	if cl.Room != nil {
 		cl.Cls()
 		for i := cl.Room.Messages.Front(); i != nil; i = i.Next() {
@@ -159,7 +161,7 @@ func (cl ClientTCP) Refresh () error {
 */
 
 //Who sends to the client a list of all the people in the same room as the client.
-func (cl *ClientTCP) Who(rms []string) {
+func (cl *ClientTelnet) Who(rms []string) {
 	var clist []string
 	if len(rms) == 0 {
 		if cl.Room == nil {
@@ -185,7 +187,7 @@ func (cl *ClientTCP) Who(rms []string) {
 
 /*
 //Cls sends then client 100 new lines to clear their screen.
-func (cl *ClientTCP) Cls () {
+func (cl *ClientTelnet) Cls () {
 	for i := 0; i<100;i++ {
 		cl.Tell("")
 	}
@@ -193,7 +195,7 @@ func (cl *ClientTCP) Cls () {
 */
 
 //List sends to the client a list of the current open rooms.
-func (cl *ClientTCP) List() {
+func (cl *ClientTelnet) List() {
 	cl.Tell("Rooms:")
 	rlist := make([]string,0,0)
 	for i := cl.Rooms.Front(); i != nil; i = i.Next() {
@@ -207,7 +209,7 @@ func (cl *ClientTCP) List() {
 
 
 //Quit logs the client out, removes the client from all rooms, and closes the connection.
-func (cl *ClientTCP) Quit() {
+func (cl *ClientTelnet) Quit() {
 	cl.Leave()
 	err := cl.Connection.Close()
 	if err != nil {
@@ -216,7 +218,7 @@ func (cl *ClientTCP) Quit() {
 }
 
 //Join adds a client to rm or creats a room if it doesn't exist.
-func (cl *ClientTCP) Join (rms []string) {
+func (cl *ClientTelnet) Join (rms []string) {
 	if len(rms) == 0 {
 		cl.Tell("Must enter a Room to join")
 		return
@@ -239,7 +241,7 @@ func (cl *ClientTCP) Join (rms []string) {
 }
 
 //Help tells the client a list of valid commands.
-func (cl ClientTCP) Help () {
+func (cl ClientTelnet) Help () {
 	cl.Tell("/quit to quit")
 	cl.Tell("/join roomname to join a room")
 	cl.Tell("/leave to leave the current room")
@@ -252,14 +254,14 @@ func (cl ClientTCP) Help () {
 }
 
 //Close closes all empty rooms.
-func (cl *ClientTCP) Close() {
+func (cl *ClientTelnet) Close() {
 	if cl.Rooms != nil {
 		cl.Rooms.CloseEmpty()
 	}
 }
 
 //Tell sends a message to the client from the server.
-func (cl ClientTCP) Tell(s string) {
+func (cl ClientTelnet) Tell(s string) {
 	msg := serverMessage{s}
 	cl.Recieve(msg)
 }
@@ -280,13 +282,24 @@ func (rml *RoomList) FindRoom (name string) *Room {
 	return nil
 }
 
+//Names returns a list of the names of the rooms in the list.
+func (rml *RoomList) Names() []string {
+	l := make([]string, rml.Len(), rml.Len())
+	for i,x := rml.Front(), 0; i != nil; i, x = i.Next(), x+1 {
+		l[x] = i.Value.(*Room).Name
+	}
+	return l
+}
+
 //CloseEmpty closes all empty rooms.
 func (rml *RoomList) CloseEmpty () {
 	rml.Lock()
 	defer rml.Unlock()
-	for entry := rml.Front(); entry != nil; entry = entry.Next() {//Close any empty rooms
-		if entry.Value.(*Room).Clients.Front() == nil {
-			rml.Remove(entry)
+	for entry,x := rml.Front(), rml.Front(); entry != nil; {//Close any empty rooms
+		x = entry
+		entry = entry.Next()
+		if x.Value.(*Room).Clients.Front() == nil {
+			rml.Remove(x)
 		}
 	}
 }
@@ -323,9 +336,11 @@ func (rm *Room) Who() []string {
 func (rm *Room) Remove (cl Client) bool {
 	rm.mux.Lock()
 	found := false
-	for i := rm.Clients.Front(); i != nil; i = i.Next() {
-		if i.Value.(Client).Equals(cl) {
-			rm.Clients.Remove(i)
+	for i, x := rm.Clients.Front(), rm.Clients.Front(); i != nil; {
+		x = i
+		i = i.Next()
+		if x.Value.(Client).Equals(cl) {
+			rm.Clients.Remove(x)
 			found = true
 		}
 	}
@@ -437,7 +452,7 @@ func handleConnection(conn net.Conn, rooms *RoomList,chl *os.File) {
 	if err != nil {
 		log.Println("Error Reading",err)
 	}
-	cl := NewClientTCP(name,conn,rooms,chl)//Client{name,conn,list.New(),nil,rooms,chl}
+	cl := NewClientTelnet(name,conn,rooms,chl)//Client{name,conn,list.New(),nil,rooms,chl}
 	for{
 		input, err := readString(cl.Connection)
 		if err != nil {
