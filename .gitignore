@@ -8,7 +8,11 @@ Desktop.ini
 # Recycle Bin used on file shares
 $RECYCLE.BIN/
 
+<<<<<<< HEAD
 # Vim swap files
+=======
+# Vim Swap files
+>>>>>>> Development
 *.go~
 *.swp
 
