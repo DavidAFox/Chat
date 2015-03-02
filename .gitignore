@@ -8,6 +8,16 @@ Desktop.ini
 # Recycle Bin used on file shares
 $RECYCLE.BIN/
 
+# Vim Swap files
+*.go~
+*.swp
+
+# Config files
+Config
+
+# ChatLog files
+ChatLog
+
 # Windows Installer files
 *.cab
 *.msi
