@@ -424,6 +424,8 @@ func newClientMessage(t string, s Client) *clientMessage {
 type config struct {
 	ListeningIP string
 	ListeningPort string
+	HTTPListeningIP string
+	HTTPListeningPort string
 	LogFile string
 }
 
@@ -532,7 +534,7 @@ func serverHTTP (rooms *RoomList, chl *os.File, c *config) {
 	http.Handle("/", room)
 	rest := newRestHandler(rooms,chl)
 	http.Handle("/rest/", rest)
-	err := http.ListenAndServe(":8080", nil)
+	err := http.ListenAndServe(net.JoinHostPort(c.HTTPListeningIP,c.HTTPListeningPort), nil)
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)
 	}
