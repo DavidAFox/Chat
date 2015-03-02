@@ -201,14 +201,21 @@ func (cl *ClientHTTP) Join(w http.ResponseWriter, rq *http.Request) {
 //Who writes the a list of the people currently in the room to the response.
 func (cl *ClientHTTP) Who(w http.ResponseWriter, rq *http.Request) {
 	path := strings.Split(rq.URL.Path,"/")
-	rm := cl.Rooms.FindRoom(path[2])
+	rm := cl.Room
+	if len(path) == 4 {
+		rm = cl.Rooms.FindRoom(path[2])
+	}
 	if rm == nil {//room does not exist
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 	enc := json.NewEncoder(w)
-	clients := cl.Room.Who()
-	err := enc.Encode(clients)
+	clients := rm.Who()
+	err := enc.Encode(rm.Name)
+	if err != nil {
+		log.Println("Error encoding room name in who: ", err)
+	}
+	err = enc.Encode(clients)
 	if err != nil {
 		log.Println("Error encoding in who: ",err)
 	}
@@ -253,11 +260,16 @@ func (h *roomHandler) CheckToken(rq *http.Request) bool{
 //GetClient returns the client assisiated with the "Autorization" token in the header of the request if they are found.  If the Client is not present in the map a new client is created and returned.
 func (h *roomHandler) GetClient(rq *http.Request) *ClientHTTP{
 	if !h.CheckToken(rq) {
-		dec := json.NewDecoder(rq.Body)
+		path := strings.Split(rq.URL.Path, "/")
 		var name string
-		err := dec.Decode(&name)
-		if err != nil {
-			log.Println ("Error decoding in GetClient: ", err)
+		if len(path) == 4 && path[3] == "join" {
+			dec := json.NewDecoder(rq.Body)
+			err := dec.Decode(&name)
+			if err != nil {
+				log.Println ("Error decoding in GetClient: ", err)
+			}
+		} else {
+			name = "Anon"
 		}
 		cl := NewClientHTTP(name, h.rooms, h.chl, h.clients)
 		return cl
@@ -277,11 +289,19 @@ func (h *roomHandler) ServeHTTP (w http.ResponseWriter, rq *http.Request) {
 				cl.List(w, rq)
 				return
 			}
+			if len(path) == 3 && path[2] == "quit" {
+				cl.Quit()
+				return
+			}
+			if len(path) == 3 && path[2] == "who" {
+				cl.Who(w,rq)
+				return
+			}
 			if len(path) < 4 {//fix later for more appropriate response
 				log.Println("Error invalid path: ", rq.URL.Path)
 				return
 			}
-			if !h.CheckToken(rq) && (path[3] != "join" || path[1] != "rooms") {
+			if !h.CheckToken(rq) && (path[3] != "join" && path[3] != "who") {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}

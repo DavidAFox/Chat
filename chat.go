@@ -1,5 +1,5 @@
 package main
-
+/* A Chat Server */
 import (
 	"net"
 	"io"
