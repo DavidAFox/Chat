@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"encoding/hex"
 	"strings"
+	"io"
 )
 
 //NewToken creats a new random token string encoded as hex.
@@ -37,6 +38,14 @@ type ClientHTTP struct {
 	Blocked *list.List
 }
 
+//log writes the string to the clients ChatLog.
+func (cl *ClientHTTP) log (s string) {
+	var err error
+	_, err = io.WriteString(cl.ChatLog, s +"\n")
+	if err != nil {
+		log.Println(err)
+	}
+}
 //GetMessage gets all the messages for a client since the last time they were checked and then removes them from their message list.
 func (cl *ClientHTTP) GetMessages (w http.ResponseWriter, rq *http.Request) {
 	m := make([]string, cl.Messages.Len(), cl.Messages.Len())
@@ -164,6 +173,7 @@ func (cl *ClientHTTP) Send(w http.ResponseWriter, rq *http.Request) {
 		log.Println("Error decoding message in Send: ", err)
 	}
 	message := newClientMessage(mtext,cl)
+	cl.log(fmt.Sprint(message))
 	cl.Room.Send(message)
 }
 
@@ -182,9 +192,7 @@ func (cl *ClientHTTP) Join(w http.ResponseWriter, rq *http.Request) {
 		newRoom := NewRoom(rmName)
 		cl.Room = newRoom
 		cl.Room.Add(cl)
-		cl.Rooms.Lock()
-		cl.Rooms.PushBack(cl.Room)
-		cl.Rooms.Unlock()
+		cl.Rooms.Add(cl.Room)
 	}else {
 	cl.Room = rm
 	rm.Add(cl)
@@ -211,7 +219,7 @@ func (cl *ClientHTTP) Who(w http.ResponseWriter, rq *http.Request) {
 	}
 	enc := json.NewEncoder(w)
 	clients := rm.Who()
-	err := enc.Encode(rm.Name)
+	err := enc.Encode(rm.Name())
 	if err != nil {
 		log.Println("Error encoding room name in who: ", err)
 	}
@@ -224,7 +232,7 @@ func (cl *ClientHTTP) Who(w http.ResponseWriter, rq *http.Request) {
 //List sends a list of the current rooms as a response.
 func (cl *ClientHTTP) List(w http.ResponseWriter, rq *http.Request) {
 	enc := json.NewEncoder(w)
-	list := cl.Rooms.Names()
+	list := cl.Rooms.Who()
 	err := enc.Encode(list)
 	if err != nil {
 		log.Println("Error encoding in List: :", err)
