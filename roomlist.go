@@ -31,7 +31,7 @@ func (rml *RoomList) CloseEmpty () {
 	for entry,x := rml.Front(), rml.Front(); entry != nil; {//Close any empty rooms
 		x = entry
 		entry = entry.Next()
-		if x.Value.(*Room).Clients.Front() == nil {
+		if x.Value.(*Room).IsEmpty() {
 			rml.Remove(x)
 		}
 	}

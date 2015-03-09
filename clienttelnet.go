@@ -15,10 +15,10 @@ import (
 //ClientTelnet is the telnet version of the client type.
 type ClientTelnet struct {
 	name string
-	Connection net.Conn
-	Blocked *list.List
-	Room *Room
-	Rooms *RoomList
+	connection net.Conn
+	blocked *list.List
+	room *Room
+	rooms *RoomList
 	ChatLog *os.File
 }
 
@@ -31,10 +31,10 @@ func (cl *ClientTelnet) Name () string {
 func NewClientTelnet(name string,conn net.Conn, rooms *RoomList, chl *os.File) *ClientTelnet {
 	cl := new(ClientTelnet)
 	cl.name = name
-	cl.Connection = conn
-	cl.Blocked = list.New()
-	cl.Room = nil
-	cl.Rooms = rooms
+	cl.connection = conn
+	cl.blocked = list.New()
+	cl.room = nil
+	cl.rooms = rooms
 	cl.ChatLog = chl
 	return cl
 }
@@ -42,7 +42,7 @@ func NewClientTelnet(name string,conn net.Conn, rooms *RoomList, chl *os.File) *
 //Equals compares two clients to see if they're the same.
 func (cl *ClientTelnet) Equals (other Client) bool {
 	if c,ok := other.(*ClientTelnet);ok{
-		return cl.Name() == c.Name() && cl.Connection == c.Connection
+		return cl.Name() == c.Name() && cl.connection == c.connection
 	}
 	return false
 }
@@ -50,7 +50,7 @@ func (cl *ClientTelnet) Equals (other Client) bool {
 //IsBlocked checks if other is blocked by the client.
 func (cl *ClientTelnet) IsBlocked(other Client) (blocked bool) {
 	blocked = false
-	for i := cl.Blocked.Front(); i != nil; i = i.Next() {
+	for i := cl.blocked.Front(); i != nil; i = i.Next() {
 		if i.Value == other.Name() {
 			blocked = true
 		}
@@ -66,11 +66,11 @@ func (cl *ClientTelnet) UnBlock(name []string) {
 	}
 	clname:= strings.Join(name, " ")
 	found := false
-	for i, x := cl.Blocked.Front(), cl.Blocked.Front(); i != nil; {
+	for i, x := cl.blocked.Front(), cl.blocked.Front(); i != nil; {
 		x = i
 		i = i.Next()
 		if x.Value == clname {
-			cl.Blocked.Remove(x)
+			cl.blocked.Remove(x)
 			found = true
 		}
 	}
@@ -88,16 +88,16 @@ func (cl *ClientTelnet) Block (name []string) {
 		return
 	}
 	clname := strings.Join(name, " ")
-	cl.Blocked.PushBack(clname)
+	cl.blocked.PushBack(clname)
 	cl.Tell(fmt.Sprintf("Now Blocking %v.", clname))
 }
 
 //Leave removes cl from current room.
 func (cl *ClientTelnet) Leave () {
-	if cl.Room != nil {
-		cl.Room.Tell(fmt.Sprintf("%v leaves the room.",cl.Name()))
-		_ = cl.Room.Remove(cl)
-		cl.Room = nil
+	if cl.room != nil {
+		cl.room.Tell(fmt.Sprintf("%v leaves the room.",cl.Name()))
+		_ = cl.room.Remove(cl)
+		cl.room = nil
 	}
 }
 
@@ -112,11 +112,11 @@ func (cl ClientTelnet) Log (s string) {
 
 //Send sends the message to the clients room.
 func (cl ClientTelnet) Send (m Message) {
-	if cl.Room == nil {
+	if cl.room == nil {
 		cl.Tell("You're not in a room.  Type /join roomname to join a room or /help for other commands.")
 		return
 	}
-	cl.Room.Send(m)
+	cl.room.Send(m)
 	cl.Log(fmt.Sprint(m))
 }
 
@@ -127,7 +127,7 @@ func (cl *ClientTelnet) Recieve (m Message) {
 			return
 		}
 	}
-	_,err := io.WriteString(cl.Connection, m.String()+"\r\n")
+	_,err := io.WriteString(cl.connection, m.String()+"\r\n")
 	if err != nil {
 		log.Println(err)
 		cl.Leave()//remove the client that caused the error from the room
@@ -137,10 +137,10 @@ func (cl *ClientTelnet) Recieve (m Message) {
 /*
 //Refresh clears the clients screen and then sends them all the messages sent in the room they are in.
 func (cl ClientTelnet) Refresh () error {
-	if cl.Room != nil {
+	if cl.room != nil {
 		cl.Cls()
-		for i := cl.Room.Messages.Front(); i != nil; i = i.Next() {
-			_, err := io.WriteString(cl.Connection,fmt.Sprint(i.Value.(Message)))
+		for i := cl.room.Messages.Front(); i != nil; i = i.Next() {
+			_, err := io.WriteString(cl.connection,fmt.Sprint(i.Value.(Message)))
 			if err != nil {
 				return err
 			}
@@ -154,15 +154,15 @@ func (cl ClientTelnet) Refresh () error {
 func (cl *ClientTelnet) Who(rms []string) {
 	var clist []string
 	if len(rms) == 0 {
-		if cl.Room == nil {
+		if cl.room == nil {
 			cl.Tell("You're not in a room.  Type /join roomname to join a room or /help for other commands.")
 			return
 		}
-		clist = cl.Room.Who()
-		cl.Tell(fmt.Sprintf("Room: %v",cl.Room.Name()))
+		clist = cl.room.Who()
+		cl.Tell(fmt.Sprintf("Room: %v",cl.room.Name()))
 	}else {
 		name := strings.Join(rms, " ")
-		rm := cl.Rooms.FindRoom(name)
+		rm := cl.rooms.FindRoom(name)
 		if rm == nil {
 			cl.Tell("Room not Found")
 			return
@@ -187,7 +187,7 @@ func (cl *ClientTelnet) Cls () {
 //List sends to the client a list of the current open rooms.
 func (cl *ClientTelnet) List() {
 	cl.Tell("Rooms:")
-	rlist := cl.Rooms.Who()
+	rlist := cl.rooms.Who()
 	sort.Strings(rlist)
 	for _,i := range rlist {
 		cl.Tell(i)
@@ -198,7 +198,7 @@ func (cl *ClientTelnet) List() {
 //Quit logs the client out, removes the client from all rooms, and closes the connection.
 func (cl *ClientTelnet) Quit() {
 	cl.Leave()
-	err := cl.Connection.Close()
+	err := cl.connection.Close()
 	if err != nil {
 		log.Println(err)
 	}
@@ -212,19 +212,17 @@ func (cl *ClientTelnet) Join (rms []string) {
 	}
 	name := strings.Join(rms, " ")
 	cl.Leave()//leave old room first
-	rm := cl.Rooms.FindRoom(name)
+	rm := cl.rooms.FindRoom(name)
 	if rm == nil {
 		newRoom := NewRoom(name)
-		cl.Room = newRoom //set the room as the clients room
-		cl.Room.Add(cl) //add the client to the room
-		cl.Rooms.Lock()
-		cl.Rooms.PushBack(cl.Room) //add the room to the room list
-		cl.Rooms.Unlock()
+		cl.room = newRoom //set the room as the clients room
+		cl.room.Add(cl) //add the client to the room
+		cl.rooms.Add(cl.room) //add the room to the room list
 	} else {
-	cl.Room = rm
+	cl.room = rm
 	rm.Add(cl)
 	}
-	cl.Room.Tell(fmt.Sprintf("%v has joined the room.",cl.Name()))
+	cl.room.Tell(fmt.Sprintf("%v has joined the room.",cl.Name()))
 }
 
 //Help tells the client a list of valid commands.
@@ -242,8 +240,8 @@ func (cl ClientTelnet) Help () {
 
 //Close closes all empty rooms.
 func (cl *ClientTelnet) Close() {
-	if cl.Rooms != nil {
-		cl.Rooms.CloseEmpty()
+	if cl.rooms != nil {
+		cl.rooms.CloseEmpty()
 	}
 }
 
@@ -294,7 +292,7 @@ func handleConnection(conn net.Conn, rooms *RoomList,chl *os.File) {
 	}
 	cl := NewClientTelnet(name,conn,rooms,chl)
 	for{
-		input, err := readString(cl.Connection)
+		input, err := readString(cl.connection)
 		if err != nil {
 			log.Println("Error Reading",err)
 		}

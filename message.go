@@ -3,7 +3,20 @@ package main
 import (
 	"time"
 	"fmt"
+	"container/list"
+	"sync"
 )
+
+//messageList is a mutex enhanced linked list of messages.
+type messageList struct {
+	*list.List
+	*sync.Mutex
+}
+
+//newMessageList creates a new message list.
+func newMessageList () *messageList {
+	return &messageList{list.New(), new(sync.Mutex)}
+}
 
 //serverMessage is a message containing only a string sent from the server.
 type serverMessage struct {
