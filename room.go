@@ -62,18 +62,16 @@ func (c *clientList) Who() []string {
 //Room is a room name and a linked list of clients in the room.
 type Room struct {
 	name string
-	Clients *clientList
-	Messages *list.List
-	mux *sync.Mutex
+	clients *clientList
+	messages *messageList
 }
 
 //NewRoom creates a room with name.
 func NewRoom (name string) *Room {
 	newRoom := new(Room)
 	newRoom.name = name
-	newRoom.Clients = NewClientList()
-	newRoom.Messages = list.New()
-	newRoom.mux = new(sync.Mutex)
+	newRoom.clients = NewClientList()
+	newRoom.messages = newMessageList()
 	return newRoom
 }
 
@@ -92,30 +90,17 @@ func (rm *Room) Name() string {
 
 //Who returns a slice of the names of all the clients in the rooms client list.
 func (rm *Room) Who () []string {
-	return rm.Clients.Who()
+	return rm.clients.Who()
 }
 
 //Remove removes a client from the room.
 func (rm *Room) Remove (cl Client) bool {
-/*	rm.mux.Lock()
-	found := false
-	for i, x := rm.Clients.Front(), rm.Clients.Front(); i != nil; {
-		x = i
-		i = i.Next()
-		if x.Value.(Client).Equals(cl) {
-			rm.Clients.Remove(x)
-			found = true
-		}
-	}
-	rm.mux.Unlock()
-	return found
-*/
-	return rm.Clients.Rem(cl)
+	return rm.clients.Rem(cl)
 }
 
 //Add adds a client to a room.
 func (rm *Room) Add (cl Client) {
-	rm.Clients.Add(cl)
+	rm.clients.Add(cl)
 }
 
 //Tell sends a string to the room from the server.
@@ -126,28 +111,37 @@ func (rm Room) Tell(s string) {
 
 //Send puts the message into each client in the room's recieve function.
 func (rm *Room) Send (m Message) {
-	for i := rm.Clients.Front(); i != nil; i = i.Next() {
+	for i := rm.clients.Front(); i != nil; i = i.Next() {
 		i.Value.(Client).Recieve(m)
 	}
-	rm.mux.Lock()
-	rm.Messages.PushBack(m)
-	rm.mux.Unlock()
+	rm.messages.Lock()
+	rm.messages.PushBack(m)
+	rm.messages.Unlock()
 }
 
 //Recieve passes messages the room recieves to all clients in the room's client list.
 func (rm *Room) Recieve (m Message) {
-	for i := rm.Clients.Front(); i != nil; i = i.Next() {
+	for i := rm.clients.Front(); i != nil; i = i.Next() {
 		i.Value.(Client).Recieve(m)
 	}
-	rm.mux.Lock()
-	rm.Messages.PushBack(m)
-	rm.mux.Unlock()
+	rm.messages.Lock()
+	rm.messages.PushBack(m)
+	rm.messages.Unlock()
+}
+
+
+//IsEmpty returns true if the room is empty.
+func (rm *Room) IsEmpty() bool {
+	if rm.clients.Front() == nil {
+		return true
+	}
+	return false
 }
 
 //GetMessages gets the messages from the room message list and returns them as a []string.
 func (rm Room) GetMessages() []string {
-	m := make([]string,rm.Messages.Len(), rm.Messages.Len())
-	for i,x := rm.Messages.Front(), 0; i != nil; i,x = i.Next(),x+1 {
+	m := make([]string,rm.messages.Len(), rm.messages.Len())
+	for i,x := rm.messages.Front(), 0; i != nil; i,x = i.Next(),x+1 {
 		m[x] = fmt.Sprint(i.Value)
 	}
 	return m

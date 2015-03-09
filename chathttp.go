@@ -12,10 +12,22 @@ import (
 	"encoding/hex"
 	"strings"
 	"io"
+	"sync"
 )
 
-//NewToken creats a new random token string encoded as hex.
-func NewToken () string {
+//clientMap is a map of ClientHTTPs that includes a mutex.
+type clientMap struct {
+	Map map[string]*ClientHTTP
+	Mutex *sync.Mutex
+}
+
+//newClientMap creates a new clientMap
+func newClientMap() *clientMap {
+	return &clientMap{make(map[string]*ClientHTTP), new(sync.Mutex)}
+}
+
+//newToken creats a new random token string encoded as hex.
+func newToken () string {
 	b := make([]byte, 256,256)
 	_, err:= rand.Read(b)
 	if err != nil {
@@ -28,35 +40,37 @@ func NewToken () string {
 //ClientHTTP is a client for the HTTP API
 type ClientHTTP struct {
 	name string
-	Messages *list.List
-	Room *Room
+	messages *messageList
+	room *Room
 	timeOut *time.Timer
-	Token string
-	Rooms *RoomList
-	ChatLog *os.File
-	Clients map[string]*ClientHTTP
-	Blocked *list.List
+	token string
+	rooms *RoomList
+	chatlog *os.File
+	clients *clientMap
+	blocked *list.List
 }
 
-//log writes the string to the clients ChatLog.
+//log writes the string to the clients chatlog.
 func (cl *ClientHTTP) log (s string) {
 	var err error
-	_, err = io.WriteString(cl.ChatLog, s +"\n")
+	_, err = io.WriteString(cl.chatlog, s +"\n")
 	if err != nil {
 		log.Println(err)
 	}
 }
 //GetMessage gets all the messages for a client since the last time they were checked and then removes them from their message list.
 func (cl *ClientHTTP) GetMessages (w http.ResponseWriter, rq *http.Request) {
-	m := make([]string, cl.Messages.Len(), cl.Messages.Len())
-	for i,x := cl.Messages.Front(), 0; i != nil; i,x = i.Next(), x+1 {
+	cl.messages.Lock()
+	m := make([]string, cl.messages.Len(), cl.messages.Len())
+	for i,x := cl.messages.Front(), 0; i != nil; i,x = i.Next(), x+1 {
 		m[x] = fmt.Sprint(i.Value)
 	}
-	for i,x  := cl.Messages.Front(), cl.Messages.Front(); i != nil; {
+	for i,x  := cl.messages.Front(), cl.messages.Front(); i != nil; {
 		x = i
 		i = i.Next()
-		cl.Messages.Remove(x)
+		cl.messages.Remove(x)
 	}
+	cl.messages.Unlock()
 	enc := json.NewEncoder(w)
 	err := enc.Encode(m)
 	if err != nil {
@@ -65,25 +79,25 @@ func (cl *ClientHTTP) GetMessages (w http.ResponseWriter, rq *http.Request) {
 }
 
 //NewClientHTTP initializes and returns a new client.
-func NewClientHTTP(name string, rooms *RoomList, chl *os.File, m map[string]*ClientHTTP) *ClientHTTP {
+func NewClientHTTP(name string, rooms *RoomList, chl *os.File, m *clientMap) *ClientHTTP {
 	cl := new(ClientHTTP)
 	cl.name = name
-	cl.Messages = list.New()
-	cl.Room = nil
-	cl.Rooms = rooms
+	cl.messages = newMessageList()
+	cl.room = nil
+	cl.rooms = rooms
 	d := 5*time.Minute
 	cl.timeOut = time.AfterFunc(d,cl.Quit)
-	cl.Token = NewToken()
-	cl.ChatLog = chl
-	cl.Clients = m
-	cl.Blocked = list.New()
+	cl.token = newToken()
+	cl.chatlog = chl
+	cl.clients = m
+	cl.blocked = list.New()
 	return cl
 }
 
 //IsBlocked checks if other is blocked by the client.
 func (cl *ClientHTTP) IsBlocked(other Client) (blocked bool) {
 	blocked = false
-	for i := cl.Blocked.Front(); i != nil; i = i.Next() {
+	for i := cl.blocked.Front(); i != nil; i = i.Next() {
 		if i.Value == other.Name() {
 			blocked = true
 		}
@@ -100,11 +114,11 @@ func (cl *ClientHTTP) UnBlock(w http.ResponseWriter, rq *http.Request) {
 		log.Println("Error decoding in unblock: ", err)
 	}
 	found := false
-	for i,x := cl.Blocked.Front(), cl.Blocked.Front(); i != nil; {
+	for i,x := cl.blocked.Front(), cl.blocked.Front(); i != nil; {
 		x = i
 		i = i.Next()
 		if x.Value == name {
-			cl.Blocked.Remove(x)
+			cl.blocked.Remove(x)
 			found = true
 		}
 	}
@@ -123,7 +137,7 @@ func (cl *ClientHTTP) Block(w http.ResponseWriter, rq *http.Request) {
 	if err != nil {
 		log.Println("Error decoding in Block: ", err)
 	}
-	cl.Blocked.PushBack(name)
+	cl.blocked.PushBack(name)
 }
 
 //Name returns the clients name.
@@ -134,7 +148,7 @@ func (cl *ClientHTTP) Name() string {
 //Equals compares the client to other and returns true if they have the same name and token.
 func (cl *ClientHTTP) Equals(other Client) bool {
 	if c, ok := other.(*ClientHTTP); ok {
-		return cl.Name() == c.Name() && cl.Token == c.Token
+		return cl.Name() == c.Name() && cl.token == c.token
 	}
 	return false
 }
@@ -146,21 +160,26 @@ func (cl *ClientHTTP) Recieve(m Message) {
 			return
 		}
 	}
-	cl.Messages.PushBack(m)
+	cl.messages.Lock()
+	cl.messages.PushBack(m)
+	cl.messages.Unlock()
 }
 
 //Quit removes the client from their current room and removes their token entry from the client map.
 func (cl *ClientHTTP) Quit () {
 	cl.Leave()
-	delete(cl.Clients, cl.Token) //remove client/Token from map
+	cl.clients.Mutex.Lock()
+	delete(cl.clients.Map, cl.token) //remove client/Token from map
+	cl.clients.Mutex.Unlock()
+	_ = cl.timeOut.Stop()
 }
 
 //Removes the client from their current room.
 func (cl *ClientHTTP) Leave() {
-	if cl.Room != nil {
-		cl.Room.Tell(fmt.Sprintf("%v leaves the room.", cl.Name()))
-		_ = cl.Room.Remove(cl)
-		cl.Room = nil
+	if cl.room != nil {
+		cl.room.Tell(fmt.Sprintf("%v leaves the room.", cl.Name()))
+		_ = cl.room.Remove(cl)
+		cl.room = nil
 	}
 }
 
@@ -174,7 +193,7 @@ func (cl *ClientHTTP) Send(w http.ResponseWriter, rq *http.Request) {
 	}
 	message := newClientMessage(mtext,cl)
 	cl.log(fmt.Sprint(message))
-	cl.Room.Send(message)
+	cl.room.Send(message)
 }
 
 //ResetTimeOut resets the clients timeout timer.
@@ -187,31 +206,33 @@ func (cl *ClientHTTP) Join(w http.ResponseWriter, rq *http.Request) {
 	path := strings.Split(rq.URL.Path,"/")
 	rmName := path[2]
 	cl.Leave()
-	rm := cl.Rooms.FindRoom(rmName)
+	rm := cl.rooms.FindRoom(rmName)
 	if rm == nil {
 		newRoom := NewRoom(rmName)
-		cl.Room = newRoom
-		cl.Room.Add(cl)
-		cl.Rooms.Add(cl.Room)
+		cl.room = newRoom
+		cl.room.Add(cl)
+		cl.rooms.Add(cl.room)
 	}else {
-	cl.Room = rm
+	cl.room = rm
 	rm.Add(cl)
 	}
-	cl.Clients[cl.Token] = cl
+	cl.clients.Mutex.Lock()
+	cl.clients.Map[cl.token] = cl
+	cl.clients.Mutex.Unlock()
 	enc := json.NewEncoder(w)
-	err := enc.Encode(cl.Token)
+	err := enc.Encode(cl.token)
 	if err != nil {
 		log.Println("Error encoding client token in join: ", err)
 	}
-	cl.Room.Tell(fmt.Sprintf("%v has joined the room.", cl.Name()))
+	cl.room.Tell(fmt.Sprintf("%v has joined the room.", cl.Name()))
 }
 
 //Who writes the a list of the people currently in the room to the response.
 func (cl *ClientHTTP) Who(w http.ResponseWriter, rq *http.Request) {
 	path := strings.Split(rq.URL.Path,"/")
-	rm := cl.Room
+	rm := cl.room
 	if len(path) == 4 {
-		rm = cl.Rooms.FindRoom(path[2])
+		rm = cl.rooms.FindRoom(path[2])
 	}
 	if rm == nil {//room does not exist
 		w.WriteHeader(http.StatusNotFound)
@@ -232,7 +253,7 @@ func (cl *ClientHTTP) Who(w http.ResponseWriter, rq *http.Request) {
 //List sends a list of the current rooms as a response.
 func (cl *ClientHTTP) List(w http.ResponseWriter, rq *http.Request) {
 	enc := json.NewEncoder(w)
-	list := cl.Rooms.Who()
+	list := cl.rooms.Who()
 	err := enc.Encode(list)
 	if err != nil {
 		log.Println("Error encoding in List: :", err)
@@ -241,7 +262,7 @@ func (cl *ClientHTTP) List(w http.ResponseWriter, rq *http.Request) {
 
 //roomHandler handles the HTTP client requests.
 type roomHandler struct {
-	clients map[string]*ClientHTTP
+	clients *clientMap
 	rooms *RoomList
 	chl *os.File
 }
@@ -251,21 +272,23 @@ func newRoomHandler(rooms *RoomList, chl *os.File) *roomHandler {
 	r := new(roomHandler)
 	r.rooms = rooms
 	r.chl = chl
-	r.clients = make(map[string]*ClientHTTP)
+	r.clients = newClientMap()
 	return r
 }
 
-//CheckToken returns true if the Token present and found in clients map.
+//CheckToken returns true if the token present and found in clients map.
 func (h *roomHandler) CheckToken(rq *http.Request) bool{
 	token := rq.Header.Get("Authorization")
 	if token != "" {
-		_, matched := h.clients[token]
+		h.clients.Mutex.Lock()
+		_, matched := h.clients.Map[token]
+		h.clients.Mutex.Unlock()
 		return matched
 	}
 	return false
 }
 
-//GetClient returns the client assisiated with the "Autorization" token in the header of the request if they are found.  If the Client is not present in the map a new client is created and returned.
+//GetClient returns the client associated with the "Autorization" token in the header of the request if they are found.  If the Client is not present in the map a new client is created and returned.
 func (h *roomHandler) GetClient(rq *http.Request) *ClientHTTP{
 	if !h.CheckToken(rq) {
 		path := strings.Split(rq.URL.Path, "/")
@@ -282,7 +305,9 @@ func (h *roomHandler) GetClient(rq *http.Request) *ClientHTTP{
 		cl := NewClientHTTP(name, h.rooms, h.chl, h.clients)
 		return cl
 	}
-	cl := h.clients[rq.Header.Get("Authorization")]
+	h.clients.Mutex.Lock()
+	cl := h.clients.Map[rq.Header.Get("Authorization")]
+	h.clients.Mutex.Unlock()
 	cl.ResetTimeOut()
 	return cl
 }
