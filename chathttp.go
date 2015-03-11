@@ -12,18 +12,118 @@ import (
 	"encoding/hex"
 	"strings"
 	"io"
-	"sync"
 )
 
-//clientMap is a map of ClientHTTPs that includes a mutex.
-type clientMap struct {
-	Map map[string]*ClientHTTP
-	Mutex *sync.Mutex
+//ClientMap is a concurrent safe map of clients
+type ClientMap struct {
+	clients map[string]*ClientHTTP
+	in chan interface{}
 }
 
-//newClientMap creates a new clientMap
-func newClientMap() *clientMap {
-	return &clientMap{make(map[string]*ClientHTTP), new(sync.Mutex)}
+//NewClientMap makes a new ClientMap and starts its handle function.
+func NewClientMap() *ClientMap {
+	clm := new(ClientMap)
+	clm.clients = make(map[string]*ClientHTTP)
+	clm.in = make(chan interface{})
+	go clm.handle()
+	return clm
+}
+
+type mapAdd struct {
+	client *ClientHTTP
+	added chan bool
+}
+
+func newMapAdd (cl *ClientHTTP) *mapAdd {
+	cmd := new(mapAdd)
+	cmd.client = cl
+	cmd.added = make(chan bool)
+	return cmd
+}
+
+type mapGet struct {
+	token string
+	response chan *ClientHTTP
+}
+
+func newMapGet(token string) *mapGet {
+	cmd := new(mapGet)
+	cmd.token = token
+	cmd.response = make(chan *ClientHTTP)
+	return cmd
+}
+
+type mapDelete struct {
+	token string
+	deleted chan bool
+}
+
+func newMapDelete (token string) *mapDelete {
+	cmd := new(mapDelete)
+	cmd.token = token
+	cmd.deleted = make(chan bool)
+	return cmd
+}
+//handle takes objects off the ClientMap's in channel, adjusts the map, and then passes back the results on the channel in the object from the in channel.
+func (clm *ClientMap) handle() {
+	for cmd := range clm.in{
+		switch x := cmd.(type) {
+			case *mapAdd:
+				if _, ok := clm.clients[x.client.token];ok {
+					x.added <- false
+				}else{
+					clm.clients[x.client.token] = x.client
+					x.added <- true
+				}
+			case *mapGet:
+				if cl, ok := clm.clients[x.token];ok {
+					x.response <- cl
+				}else {
+					x.response <- nil
+			}
+			case *mapDelete:
+				if _, ok := clm.clients[x.token];!ok{
+					x.deleted <- false
+				} else {
+					delete(clm.clients,x.token)
+					x.deleted <- true
+				}
+			default:
+				log.Println("Error invalid type in clientmap.handle().")
+		}
+	}
+}
+
+//Add adds the client to the map.
+func (clm *ClientMap) Add(cl *ClientHTTP) bool {
+	cmd := newMapAdd(cl)
+	clm.in <- cmd
+	return <- cmd.added
+}
+
+//Check returns true if there is a client matching token in the map.
+func (clm *ClientMap) Check(token string) bool {
+	cmd := newMapGet(token)
+	clm.in <- cmd
+	cl := <-cmd.response
+	if cl != nil {
+		return true
+	}
+	return false
+}
+
+//Get returns client with matching token from the map.
+func (clm *ClientMap) Get(token string) *ClientHTTP {
+	cmd := newMapGet(token)
+	clm.in <- cmd
+	return <-cmd.response
+}
+
+//Delete deletes client with matching token from the map if present.
+func (clm *ClientMap) Delete(token string) bool {
+	cmd := newMapDelete(token)
+	clm.in <- cmd
+	return <-cmd.deleted
 }
 
 //newToken creats a new random token string encoded as hex.
@@ -46,7 +146,7 @@ type ClientHTTP struct {
 	token string
 	rooms *RoomList
 	chatlog *os.File
-	clients *clientMap
+	clients *ClientMap
 	blocked *list.List
 }
 
@@ -79,7 +179,7 @@ func (cl *ClientHTTP) GetMessages (w http.ResponseWriter, rq *http.Request) {
 }
 
 //NewClientHTTP initializes and returns a new client.
-func NewClientHTTP(name string, rooms *RoomList, chl *os.File, m *clientMap) *ClientHTTP {
+func NewClientHTTP(name string, rooms *RoomList, chl *os.File, m *ClientMap) *ClientHTTP {
 	cl := new(ClientHTTP)
 	cl.name = name
 	cl.messages = newMessageList()
@@ -168,9 +268,7 @@ func (cl *ClientHTTP) Recieve(m Message) {
 //Quit removes the client from their current room and removes their token entry from the client map.
 func (cl *ClientHTTP) Quit () {
 	cl.Leave()
-	cl.clients.Mutex.Lock()
-	delete(cl.clients.Map, cl.token) //remove client/Token from map
-	cl.clients.Mutex.Unlock()
+	cl.clients.Delete(cl.token)
 	_ = cl.timeOut.Stop()
 }
 
@@ -216,9 +314,7 @@ func (cl *ClientHTTP) Join(w http.ResponseWriter, rq *http.Request) {
 	cl.room = rm
 	rm.Add(cl)
 	}
-	cl.clients.Mutex.Lock()
-	cl.clients.Map[cl.token] = cl
-	cl.clients.Mutex.Unlock()
+	cl.clients.Add(cl)
 	enc := json.NewEncoder(w)
 	err := enc.Encode(cl.token)
 	if err != nil {
@@ -262,7 +358,7 @@ func (cl *ClientHTTP) List(w http.ResponseWriter, rq *http.Request) {
 
 //roomHandler handles the HTTP client requests.
 type roomHandler struct {
-	clients *clientMap
+	clients *ClientMap
 	rooms *RoomList
 	chl *os.File
 }
@@ -272,7 +368,7 @@ func newRoomHandler(rooms *RoomList, chl *os.File) *roomHandler {
 	r := new(roomHandler)
 	r.rooms = rooms
 	r.chl = chl
-	r.clients = newClientMap()
+	r.clients = NewClientMap()
 	return r
 }
 
@@ -280,10 +376,7 @@ func newRoomHandler(rooms *RoomList, chl *os.File) *roomHandler {
 func (h *roomHandler) CheckToken(rq *http.Request) bool{
 	token := rq.Header.Get("Authorization")
 	if token != "" {
-		h.clients.Mutex.Lock()
-		_, matched := h.clients.Map[token]
-		h.clients.Mutex.Unlock()
-		return matched
+		return h.clients.Check(token)
 	}
 	return false
 }
@@ -305,9 +398,7 @@ func (h *roomHandler) GetClient(rq *http.Request) *ClientHTTP{
 		cl := NewClientHTTP(name, h.rooms, h.chl, h.clients)
 		return cl
 	}
-	h.clients.Mutex.Lock()
-	cl := h.clients.Map[rq.Header.Get("Authorization")]
-	h.clients.Mutex.Unlock()
+	cl := h.clients.Get(rq.Header.Get("Authorization"))
 	cl.ResetTimeOut()
 	return cl
 }
@@ -330,8 +421,9 @@ func (h *roomHandler) ServeHTTP (w http.ResponseWriter, rq *http.Request) {
 				cl.Who(w,rq)
 				return
 			}
-			if len(path) < 4 {//fix later for more appropriate response
+			if len(path) < 4 {
 				log.Println("Error invalid path: ", rq.URL.Path)
+				w.WriteHeader(http.StatusNotFound)
 				return
 			}
 			if !h.CheckToken(rq) && (path[3] != "join" && path[3] != "who") {
