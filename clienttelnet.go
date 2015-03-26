@@ -88,6 +88,10 @@ func (cl *ClientTelnet) Block (name []string) {
 		return
 	}
 	clname := strings.Join(name, " ")
+	if clname == cl.Name() {
+		cl.Tell("You can't block yourself.")
+		return
+	}
 	cl.blocked.PushBack(clname)
 	cl.Tell(fmt.Sprintf("Now Blocking %v.", clname))
 }
@@ -95,9 +99,11 @@ func (cl *ClientTelnet) Block (name []string) {
 //Leave removes cl from current room.
 func (cl *ClientTelnet) Leave () {
 	if cl.room != nil {
-		cl.room.Tell(fmt.Sprintf("%v leaves the room.",cl.Name()))
 		_ = cl.room.Remove(cl)
+		rm2 := cl.room
 		cl.room = nil
+		rm2.Tell(fmt.Sprintf("%v leaves the room.",cl.Name()))
+		cl.Tell(fmt.Sprintf("%v leaves the room.", cl.Name()))
 	}
 }
 

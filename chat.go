@@ -8,6 +8,7 @@ import (
 	"os"
 	"log"
 	"net/http"
+	"os/signal"
 )
 
 //Client interface for working with the Room type.
@@ -48,22 +49,52 @@ func configure (filename string) (c *config) {
 	return
 }
 
-//server listens for connections and sends them to handleConnection().
-func server (rooms *RoomList, chl *os.File, c *config) {
 
-	// go documentation code
-	ln, err := net.Listen("tcp", net.JoinHostPort(c.ListeningIP,c.ListeningPort))
-	if err != nil{
+type telnetServer struct {
+	rooms *RoomList
+	chatlog *os.File
+	cls chan bool
+	ln net.Listener
+	done bool
+}
+
+func NewTelnetServer (rooms *RoomList, chl *os.File, c *config) *telnetServer {
+	ts := new(telnetServer)
+	var err error
+	ts.ln, err = net.Listen("tcp", net.JoinHostPort(c.ListeningIP, c.ListeningPort))
+	if err != nil {
 		log.Panic(err)
 	}
+	ts.cls = make(chan bool, 1)
+	ts.rooms = rooms
+	ts.chatlog = chl
+	ts.done = false
+	return ts
+}
+
+func (ts *telnetServer) Stop(){
+	ts.done = true
+	ts.cls<-true
+	ts.ln.Close()
+}
+
+//server listens for connections and sends them to handleConnection().
+func (ts *telnetServer) Start () {
+Outerloop:
 	for{
-		conn, err := ln.Accept()
-		if err != nil {
-			log.Println(err)
+		select {
+			case <-ts.cls:
+				break Outerloop
+			default:
+				conn, err := ts.ln.Accept()
+				if err != nil && ts.done == false {
+					log.Println(err)
+				}
+				if conn != nil {
+					go handleConnection(conn,ts.rooms,ts.chatlog)
+				}
 		}
-		go handleConnection(conn,rooms,chl)
 	}
-	// end go documentation code
 }
 
 //serverHTTP sets up the http handlers and then runs ListenAndServe
@@ -99,6 +130,7 @@ func (m *restHandler) ServeHTTP(w http.ResponseWriter, rq *http.Request) {
 	room := m.rooms.FindRoom(roomName)
 	if room == nil {
 		log.Println("ServeHTTP: room not found ", roomName)
+		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 	if rq.Method == "GET" {
@@ -150,6 +182,12 @@ func main() {
 	if err != nil {
 		log.Panic(err)
 	}
-	go server(rooms, chl,c)
-	serverHTTP(rooms,chl,c)
+	tserv := NewTelnetServer(rooms,chl,c)
+	go tserv.Start()
+	go serverHTTP(rooms,chl,c)
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, os.Interrupt)
+	_ = <-ch
+	tserv.Stop()
+	chl.Close()
 }

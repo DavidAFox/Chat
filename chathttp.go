@@ -237,7 +237,18 @@ func (cl *ClientHTTP) Block(w http.ResponseWriter, rq *http.Request) {
 	if err != nil {
 		log.Println("Error decoding in Block: ", err)
 	}
-	cl.blocked.PushBack(name)
+	found := false
+	for i := cl.blocked.Front(); i != nil; i = i.Next() {
+		if i.Value== name {
+			found = true
+		}
+	}
+	if name == cl.Name(){
+		return
+	}
+	if !found {
+		cl.blocked.PushBack(name)
+	}
 }
 
 //Name returns the clients name.
@@ -275,9 +286,11 @@ func (cl *ClientHTTP) Quit () {
 //Removes the client from their current room.
 func (cl *ClientHTTP) Leave() {
 	if cl.room != nil {
-		cl.room.Tell(fmt.Sprintf("%v leaves the room.", cl.Name()))
+		rm2 := cl.room
 		_ = cl.room.Remove(cl)
 		cl.room = nil
+		rm2.Tell(fmt.Sprintf("%v leaves the room.", cl.Name()))
+		cl.Recieve(serverMessage{fmt.Sprintf("%v leaves the room.", cl.Name())})
 	}
 }
 
@@ -290,8 +303,12 @@ func (cl *ClientHTTP) Send(w http.ResponseWriter, rq *http.Request) {
 		log.Println("Error decoding message in Send: ", err)
 	}
 	message := newClientMessage(mtext,cl)
-	cl.log(fmt.Sprint(message))
-	cl.room.Send(message)
+	if cl.room != nil {
+		cl.log(fmt.Sprint(message))
+		cl.room.Send(message)
+	}else{
+		cl.Recieve(serverMessage{"You're not in a room.  Type /join roomname to join a room or /help for other commands."})
+	}
 }
 
 //ResetTimeOut resets the clients timeout timer.
@@ -314,12 +331,12 @@ func (cl *ClientHTTP) Join(w http.ResponseWriter, rq *http.Request) {
 	cl.room = rm
 	rm.Add(cl)
 	}
-	cl.clients.Add(cl)
-	enc := json.NewEncoder(w)
-	err := enc.Encode(cl.token)
-	if err != nil {
-		log.Println("Error encoding client token in join: ", err)
-	}
+//	cl.clients.Add(cl)
+//	enc := json.NewEncoder(w)
+//	err := enc.Encode(cl.token)
+//	if err != nil {
+//		log.Println("Error encoding client token in join: ", err)
+//	}
 	cl.room.Tell(fmt.Sprintf("%v has joined the room.", cl.Name()))
 }
 
@@ -355,6 +372,22 @@ func (cl *ClientHTTP) List(w http.ResponseWriter, rq *http.Request) {
 		log.Println("Error encoding in List: :", err)
 	}
 }
+func (h *roomHandler) Login(w http.ResponseWriter, rq *http.Request) {
+	var name string
+	dec := json.NewDecoder(rq.Body)
+	err := dec.Decode(&name)
+	if err != nil {
+		log.Println ("Error decoding in GetClient: ", err)
+	}
+	cl := NewClientHTTP(name, h.rooms, h.chl, h.clients)
+	cl.clients.Add(cl)
+	enc := json.NewEncoder(w)
+	err = enc.Encode(cl.token)
+	if err != nil {
+		log.Println("Error encoding client token in join: ", err)
+	}
+}
+
 
 //roomHandler handles the HTTP client requests.
 type roomHandler struct {
@@ -384,17 +417,17 @@ func (h *roomHandler) CheckToken(rq *http.Request) bool{
 //GetClient returns the client associated with the "Autorization" token in the header of the request if they are found.  If the Client is not present in the map a new client is created and returned.
 func (h *roomHandler) GetClient(rq *http.Request) *ClientHTTP{
 	if !h.CheckToken(rq) {
-		path := strings.Split(rq.URL.Path, "/")
+//		path := strings.Split(rq.URL.Path, "/")
 		var name string
-		if len(path) == 4 && path[3] == "join" {
-			dec := json.NewDecoder(rq.Body)
-			err := dec.Decode(&name)
-			if err != nil {
-				log.Println ("Error decoding in GetClient: ", err)
-			}
-		} else {
+//		if len(path) == 4 && path[3] == "join" {
+//			dec := json.NewDecoder(rq.Body)
+//			err := dec.Decode(&name)
+//			if err != nil {
+//				log.Println ("Error decoding in GetClient: ", err)
+//			}
+//		} else {
 			name = "Anon"
-		}
+//		}
 		cl := NewClientHTTP(name, h.rooms, h.chl, h.clients)
 		return cl
 	}
@@ -421,12 +454,16 @@ func (h *roomHandler) ServeHTTP (w http.ResponseWriter, rq *http.Request) {
 				cl.Who(w,rq)
 				return
 			}
+			if len(path) == 3 && path[2] == "leave" {
+				cl.Leave()
+				return
+			}
 			if len(path) < 4 {
 				log.Println("Error invalid path: ", rq.URL.Path)
 				w.WriteHeader(http.StatusNotFound)
 				return
 			}
-			if !h.CheckToken(rq) && (path[3] != "join" && path[3] != "who") {
+			if !h.CheckToken(rq) /*&& (path[3] != "join" && path[3] != "who")*/ {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
@@ -463,5 +500,7 @@ func (h *roomHandler) ServeHTTP (w http.ResponseWriter, rq *http.Request) {
 				return
 			}
 			cl.UnBlock(w,rq)
+		case "login":
+			h.Login(w,rq)
 	}
 }
