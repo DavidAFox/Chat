@@ -1,10 +1,10 @@
 package main
 
 import (
-	"time"
-	"fmt"
 	"container/list"
+	"fmt"
 	"sync"
+	"time"
 )
 
 //messageList is a mutex enhanced linked list of messages.
@@ -14,7 +14,7 @@ type messageList struct {
 }
 
 //newMessageList creates a new message list.
-func newMessageList () *messageList {
+func newMessageList() *messageList {
 	return &messageList{list.New(), new(sync.Mutex)}
 }
 
@@ -30,15 +30,15 @@ func (m serverMessage) String() string {
 
 //clientMessage includes the text of the message, the time it was sent and the client who sent it.
 type clientMessage struct {
-	text string
-	time time.Time
+	text   string
+	time   time.Time
 	Sender Client
 }
 
 //String formats the clientMessage as time [Sender]: text.
 func (m clientMessage) String() string {
 	const layout = "3:04pm"
-	return fmt.Sprintf("%s [%v]: %v",m.time.Format(layout),m.Sender.Name(),m.text)
+	return fmt.Sprintf("%s [%v]: %v", m.time.Format(layout), m.Sender.Name(), m.text)
 }
 
 //newMessage creates a new client message
@@ -50,7 +50,6 @@ func newClientMessage(t string, s Client) *clientMessage {
 	return msg
 }
 
-
 //restMessage is a message sent from the REST API.
 type restMessage struct {
 	Name string
@@ -61,6 +60,5 @@ type restMessage struct {
 //String returns a rest message string formated as Time [Name]: Text.
 func (m *restMessage) String() string {
 	const layout = "3:04pm"
-	return fmt.Sprintf("%s [%v]: %v", m.Time.Format(layout),m.Name, m.Text)
+	return fmt.Sprintf("%s [%v]: %v", m.Time.Format(layout), m.Name, m.Text)
 }
-

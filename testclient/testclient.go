@@ -1,8 +1,8 @@
 package testclient
 
 import (
-	"github.com/davidafox/gentest"
 	"fmt"
+	"github.com/davidafox/gentest"
 	"math/rand"
 )
 
@@ -16,7 +16,7 @@ type Client interface {
 	Join(string)
 	Send(string)
 	CheckResponse()
-	Name()string
+	Name() string
 	Update()
 }
 
@@ -50,7 +50,7 @@ type send struct {
 func (s *send) Do(shared interface{}) string {
 	message := RandomString(25)
 	s.cl.Send(message)
-	return fmt.Sprintf("Sent %v",message)
+	return fmt.Sprintf("Sent %v", message)
 }
 
 //block is an actor to do the clients block function.
@@ -82,7 +82,7 @@ func (u *unblock) Do(shared interface{}) string {
 	}
 	name := randomName(data.Names)
 	u.cl.UnBlock(name)
-	return fmt.Sprintf("unblocked %v",name)
+	return fmt.Sprintf("unblocked %v", name)
 }
 
 //list is an actor to do the clients list function.
@@ -112,7 +112,7 @@ func (w *who) Do(shared interface{}) string {
 }
 
 //NewActionList creates a slice of the clients actors.
-func NewActionList(cl Client) []gentest.Actor{
+func NewActionList(cl Client) []gentest.Actor {
 	alist := make([]gentest.Actor, 6, 6)
 	join := new(join)
 	join.cl = cl
@@ -170,7 +170,7 @@ func (rg *restget) Do(shared interface{}) string {
 
 //NewRestActionList creates a slice of rest client actors.
 func NewRestActionList(cl *RestClient) []gentest.Actor {
-	alist := make([]gentest.Actor, 2,2)
+	alist := make([]gentest.Actor, 2, 2)
 	restsend := new(restsend)
 	restsend.cl = cl
 	alist[0] = restsend
@@ -181,17 +181,17 @@ func NewRestActionList(cl *RestClient) []gentest.Actor {
 }
 
 //TestClient can hold either a regular client or a rest client.  The client that it uses is determined by its action.
-type TestClient struct{
+type TestClient struct {
 	client Client
-	rest *RestClient
+	rest   *RestClient
 	action *gentest.Test
-	name string
+	name   string
 }
 
 //ClientData is an object for passing the necessary data into the actions.
-type ClientData struct{
-	Rooms []string
-	Names []string
+type ClientData struct {
+	Rooms   []string
+	Names   []string
 	Clients []SharedClient
 }
 
@@ -200,7 +200,7 @@ func NewTestClient(cl Client) *TestClient {
 	tcl := new(TestClient)
 	tcl.client = cl
 	tcl.name = cl.Name()
-	tcl.action = gentest.New(cl.Name(),NewActionList(cl),cl)
+	tcl.action = gentest.New(cl.Name(), NewActionList(cl), cl)
 	return tcl
 }
 
@@ -209,7 +209,7 @@ func NewTestRestClient(cl *RestClient) *TestClient {
 	tcl := new(TestClient)
 	tcl.rest = cl
 	tcl.name = cl.Name()
-	tcl.action = gentest.New(cl.Name(),NewRestActionList(cl), cl)
+	tcl.action = gentest.New(cl.Name(), NewRestActionList(cl), cl)
 	return tcl
 }
 
@@ -218,7 +218,7 @@ func NewTestClientWithWeights(cl Client, weights []int) *TestClient {
 	tcl := new(TestClient)
 	tcl.client = cl
 	tcl.name = cl.Name()
-	tcl.action = gentest.NewWithWeights(cl.Name(),NewActionList(cl),cl, weights)
+	tcl.action = gentest.NewWithWeights(cl.Name(), NewActionList(cl), cl, weights)
 	return tcl
 }
 
@@ -234,36 +234,36 @@ func (tc *TestClient) Client() SharedClient {
 }
 
 //Do is a method that allows the test client to meet the Actor interface.  It will run a random client action from its action list.
-func (tc *TestClient) Do (shared interface{}) string {
+func (tc *TestClient) Do(shared interface{}) string {
 	str := tc.action.Do(shared)
 	update(shared)
 	return fmt.Sprintf("%v", str)
 }
 
 //update takes a ClientData in interface{} form and runs Update() on each of the cleitns in the client list.
-func update(shared interface{}){
+func update(shared interface{}) {
 	var data *ClientData
 	var ok bool
-	if data, ok = shared.(*ClientData);!ok {
+	if data, ok = shared.(*ClientData); !ok {
 		panic("shared not ClientData")
 	}
-	for i:= range data.Clients {
+	for i := range data.Clients {
 		data.Clients[i].Update()
 	}
 }
 
 //RandomString returns a random string of maxlen > len > 0 made up of upper and lower case letters and/or numbers.
 func RandomString(maxlen int) string {
-	x:= []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")
-	l:= rand.Int() % maxlen + 1
+	x := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")
+	l := rand.Int()%maxlen + 1
 	var s string
-	for i:=0;i<l;i++{
-		s= s+string(x[rand.Int() % len(x)])
+	for i := 0; i < l; i++ {
+		s = s + string(x[rand.Int()%len(x)])
 	}
 	return s
 }
 
 //randomName is a helper function that returns a random room name from rml.
 func randomName(nl []string) string {
-	return nl[rand.Int() % len(nl)]
+	return nl[rand.Int()%len(nl)]
 }

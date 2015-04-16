@@ -1,8 +1,6 @@
 package main
 
-import (
-)
-
+import ()
 
 //RoomList is a linked list of rooms with a mutex.
 type RoomList struct {
@@ -10,13 +8,13 @@ type RoomList struct {
 }
 
 //NewRoomList returns an empty RoomList.
-func NewRoomList () *RoomList {
+func NewRoomList() *RoomList {
 	return &RoomList{NewClientList()}
 }
 
 //FindRoom returns the first room with name.
-func (rml *RoomList) FindRoom (name string) *Room {
-	for i := rml.Front(); i !=nil; i = i.Next() {
+func (rml *RoomList) FindRoom(name string) *Room {
+	for i := rml.Front(); i != nil; i = i.Next() {
 		if i.Value.(*Room).Name() == name {
 			return i.Value.(*Room)
 		}
@@ -25,10 +23,10 @@ func (rml *RoomList) FindRoom (name string) *Room {
 }
 
 //CloseEmpty closes all empty rooms.
-func (rml *RoomList) CloseEmpty () {
+func (rml *RoomList) CloseEmpty() {
 	rml.Lock()
 	defer rml.Unlock()
-	for entry,x := rml.Front(), rml.Front(); entry != nil; {//Close any empty rooms
+	for entry, x := rml.Front(), rml.Front(); entry != nil; { //Close any empty rooms
 		x = entry
 		entry = entry.Next()
 		if x.Value.(*Room).IsEmpty() {

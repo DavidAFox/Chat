@@ -1,24 +1,23 @@
 package testclient
 
 import (
-	"net/http"
-	"fmt"
-	"encoding/json"
 	"bytes"
-	"testing"
+	"encoding/json"
+	"fmt"
 	"net"
+	"net/http"
+	"testing"
 )
-
 
 //RestClient is a type of client for testing the servers REST api.
 type RestClient struct {
-	name string
+	name     string
 	messages []string
-	client *http.Client
-	test *testing.T
-	res *Result
-	ip string
-	port string
+	client   *http.Client
+	test     *testing.T
+	res      *Result
+	ip       string
+	port     string
 }
 
 //NewRestClient returns a new RestClient.
@@ -41,20 +40,21 @@ func (cl RestClient) Name() string {
 
 //Send sends the message to the room.
 func (cl *RestClient) Send(m, room string) {
-	resp, err := restPost(cl.name,m, room,cl.client, cl.ip, cl.port)
+	resp, err := restPost(cl.name, m, room, cl.client, cl.ip, cl.port)
 	if err != nil {
 		cl.test.Errorf("Error with restPost: %v", err)
 	}
-	if resp.StatusCode == 404 {//room not found
+	if resp.StatusCode == 404 { //room not found
 		cl.messages = append(cl.messages, "Room not Found")
-		cl.res.RestSend(m,room)
+		cl.res.RestSend(m, room)
 		return
 	}
 	if resp.StatusCode != 200 {
 		cl.test.Errorf("Rest Send() Got %v want 200.  Client:%v Message:%v Room:%v", resp.StatusCode, cl.name, m, room)
 	}
-	cl.res.RestSend(fmt.Sprintf("[%v]: %v", cl.Name(), m),room)
-	for !cl.checkupdate(m, room) {}
+	cl.res.RestSend(fmt.Sprintf("[%v]: %v", cl.Name(), m), room)
+	for !cl.checkupdate(m, room) {
+	}
 }
 
 //checkupdate takes a message and a room and check to make sure that message was sent to that room.  It only checks the last message in the room.
@@ -80,14 +80,13 @@ func (cl *RestClient) checkupdate(m, room string) bool {
 	return message == fmt.Sprintf("[%v]: %v", cl.name, m)
 }
 
-
 //Get gets the messages from the room.
 func (cl *RestClient) Get(room string) {
 	resp, err := restGet(room, cl.client, cl.ip, cl.port)
 	if err != nil {
 		cl.test.Errorf("Error with restGet: %v", err)
 	}
-	if resp.StatusCode == 404 {//room not found
+	if resp.StatusCode == 404 { //room not found
 		cl.messages = append(cl.messages, "Room not Found")
 		cl.res.RestGet(room)
 		return
@@ -119,13 +118,13 @@ func (cl *RestClient) CheckResponse() {
 	}
 	for i := range cl.res.Results {
 		if cl.res.Results[i] != cl.messages[i] {
-			cl.test.Errorf("Rest CheckResponse got %v want %v.",cl.messages[i],cl.res.Results[i])
+			cl.test.Errorf("Rest CheckResponse got %v want %v.", cl.messages[i], cl.res.Results[i])
 			cl.test.Errorf("Name: %v\nResults: %v\nMessages: %v\n", cl.name, cl.res.Results, cl.messages)
 			for x := range cl.res.Results {
-				cl.test.Errorf("\nResult:  %v\nMessage: %v\n\n\n",cl.res.Results[x], cl.messages[x])
+				cl.test.Errorf("\nResult:  %v\nMessage: %v\n\n\n", cl.res.Results[x], cl.messages[x])
 			}
-			cl.test.Errorf("\nResult: %v",cl.res.Results[len(cl.res.Results) -1])
-			cl.test.Errorf("\nResult#: %v   Message#: %v\n",len(cl.res.Results), len(cl.messages))
+			cl.test.Errorf("\nResult: %v", cl.res.Results[len(cl.res.Results)-1])
+			cl.test.Errorf("\nResult#: %v   Message#: %v\n", len(cl.res.Results), len(cl.messages))
 			break
 		}
 	}
@@ -136,13 +135,13 @@ func (cl *RestClient) Update() {
 }
 
 //restPost is a helper function for creating a rest post request.
-func restPost(name,message,room string,client *http.Client, ip string, port string) (*http.Response, error) {
+func restPost(name, message, room string, client *http.Client, ip string, port string) (*http.Response, error) {
 	msg := newTestMessage(name, message)
 	enc, err := json.Marshal(msg)
 	if err != nil {
 		fmt.Println("Error encoding in restPost: ", err)
 	}
-	req, err := http.NewRequest("POST", fmt.Sprintf("http://%v/rest/%v", net.JoinHostPort(ip,port),room),bytes.NewReader(enc))
+	req, err := http.NewRequest("POST", fmt.Sprintf("http://%v/rest/%v", net.JoinHostPort(ip, port), room), bytes.NewReader(enc))
 	if err != nil {
 		fmt.Println("Error creating request in restPost: ", err)
 	}
@@ -153,4 +152,3 @@ func restPost(name,message,room string,client *http.Client, ip string, port stri
 func restGet(room string, client *http.Client, ip string, port string) (*http.Response, error) {
 	return client.Get(fmt.Sprintf("http://%v/rest/%v", net.JoinHostPort(ip, port), room))
 }
-

@@ -1,15 +1,15 @@
 package main
 
 import (
-	"testing"
-	"os"
-	"fmt"
 	"encoding/json"
-	"net/http"
-	"net"
-	"net/http/httptest"
-	"strings"
+	"fmt"
 	"github.com/davidafox/chat/chattest"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"strings"
+	"testing"
 )
 
 //Server settings for running the test.
@@ -18,15 +18,16 @@ const HTTPTestPort = "8080"
 const TelnetTestIP = "localhost"
 const TelnetTestPort = "8000"
 const TestChatLog = "Chatlog_Test"
+
 var TestConf config = config{TelnetTestIP, TelnetTestPort, HTTPTestIP, HTTPTestPort, TestChatLog}
 
-var TestMessages = []TestMessage {
-	{"Bob","Hello World"},
-	{"Fred","!(DKS)A(D"},
+var TestMessages = []TestMessage{
+	{"Bob", "Hello World"},
+	{"Fred", "!(DKS)A(D"},
 	{"12:30pm", "s7493*^&%%(^%"},
 	{"Bob", "hi"},
 	{"Bob", "hello?"},
-	{"Fred","$(#))@**!"},
+	{"Fred", "$(#))@**!"},
 }
 
 type TestMessage struct {
@@ -38,8 +39,7 @@ func (t TestMessage) Result() string {
 	return fmt.Sprintf("[%v]: %v", t.Name, t.Text)
 }
 
-
-func newTestMessage (name, message string) *TestMessage {
+func newTestMessage(name, message string) *TestMessage {
 	msg := new(TestMessage)
 	msg.Name = name
 	msg.Text = message
@@ -53,24 +53,23 @@ func TestConfigure(t *testing.T) {
 		fmt.Println("Error creating file in TestConfigure: ", err)
 	}
 	enc := json.NewEncoder(f)
-	fconf := config{"192.168.1.54","8000", "129.124.12.1","4004","Logfile"}
+	fconf := config{"192.168.1.54", "8000", "129.124.12.1", "4004", "Logfile"}
 	err = enc.Encode(&fconf)
 	if err != nil {
 		fmt.Println("Error encoding in Testconfigure: ", err)
 	}
-	conf := configure ("Config_test")
+	conf := configure("Config_test")
 	if *conf != fconf {
-		t.Errorf("configure() %v => %v, want %v",fconf,conf,fconf)
+		t.Errorf("configure() %v => %v, want %v", fconf, conf, fconf)
 	}
 }
 
-
 //NewTestHTTPServer sets up an http test server with the roomhandler and resthandler.
-func NewTestHTTPServer(rooms *RoomList,chl *os.File,conf *config) *httptest.Server{
+func NewTestHTTPServer(rooms *RoomList, chl *os.File, conf *config) *httptest.Server {
 	m := http.NewServeMux()
-	room := newRoomHandler(rooms,chl)
-	m.Handle("/",room)
-	rest := newRestHandler(rooms,chl)
+	room := newRoomHandler(rooms, chl)
+	m.Handle("/", room)
+	rest := newRestHandler(rooms, chl)
 	m.Handle("/rest/", rest)
 	hs := httptest.NewUnstartedServer(m)
 	hs.Start()
@@ -78,13 +77,13 @@ func NewTestHTTPServer(rooms *RoomList,chl *os.File,conf *config) *httptest.Serv
 }
 
 //getIPPort is a helper function that returns the ip and port out of a string of the form http://ip:port.
-func getIPPort(h string)(string, string, error) {
-	h = strings.TrimPrefix(h,"http://")
+func getIPPort(h string) (string, string, error) {
+	h = strings.TrimPrefix(h, "http://")
 	return net.SplitHostPort(h)
 }
 
 //TestHttpAndTelnet runs a test with http, telnet and rest clients.
-func TestHTTPAndTelnet(t *testing.T){
+func TestHTTPAndTelnet(t *testing.T) {
 	rooms := NewRoomList()
 	conf := &TestConf
 	chl, err := os.OpenFile(conf.LogFile, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0666)
@@ -92,8 +91,8 @@ func TestHTTPAndTelnet(t *testing.T){
 	if err != nil {
 		panic(err)
 	}
-	ts := NewTelnetServer(rooms,chl,conf)
-	hs := NewTestHTTPServer(rooms,chl,conf)
+	ts := NewTelnetServer(rooms, chl, conf)
+	hs := NewTestHTTPServer(rooms, chl, conf)
 	ip, port, err := getIPPort(hs.URL)
 	if err != nil {
 		panic(err)
@@ -120,7 +119,7 @@ func TestHTTP(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	hs := NewTestHTTPServer(rooms,chl,conf)
+	hs := NewTestHTTPServer(rooms, chl, conf)
 	ip, port, err := getIPPort(hs.URL)
 	if err != nil {
 		panic(err)
@@ -155,4 +154,3 @@ func TestTelnet(t *testing.T) {
 	te.Run()
 	ts.Stop()
 }
-

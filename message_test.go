@@ -1,23 +1,24 @@
 package main
 
 import (
+	"fmt"
 	"testing"
 	"time"
-	"fmt"
 )
 
 var messageTests = []struct {
-	name string
-	text string
-	time string
+	name   string
+	text   string
+	time   string
 	result string
 }{
-	{"Bob","Hello World", "1:00pm", "1:00pm [Bob]: Hello World"},
-	{"Fred","hi","7:00pm","7:00pm [Fred]: hi"},
-	{"dsAI!kd","839skdl9","12:00am","12:00am [dsAI!kd]: 839skdl9"},
+	{"Bob", "Hello World", "1:00pm", "1:00pm [Bob]: Hello World"},
+	{"Fred", "hi", "7:00pm", "7:00pm [Fred]: hi"},
+	{"dsAI!kd", "839skdl9", "12:00am", "12:00am [dsAI!kd]: 839skdl9"},
 }
+
 type MTestClient struct {
-	name string
+	name     string
 	messages *messageList
 }
 
@@ -36,7 +37,6 @@ func (cl *MTestClient) Name() string {
 	return cl.name
 }
 
-
 func TestRestMessageString(t *testing.T) {
 	msg := new(restMessage)
 	var err error
@@ -48,7 +48,7 @@ func TestRestMessageString(t *testing.T) {
 			fmt.Println("Error Parsing Time: ", err)
 		}
 		if msg.String() != tt.result {
-			t.Errorf("msg.String() %q,%q,%v => %q, want %q", msg.Name, msg.Text, msg.Time,msg.String(), tt.result)
+			t.Errorf("msg.String() %q,%q,%v => %q, want %q", msg.Name, msg.Text, msg.Time, msg.String(), tt.result)
 		}
 	}
 }
@@ -66,7 +66,7 @@ func MTestClientMessageString(t *testing.T) {
 			fmt.Println("Error Parsing Time: ", err)
 		}
 		if msg.String() != tt.result {
-			t.Errorf("msg.String() %q,%q,%v => %q, want %q",msg.Sender.Name(),msg.text,msg.time,msg.String(), tt.result)
+			t.Errorf("msg.String() %q,%q,%v => %q, want %q", msg.Sender.Name(), msg.text, msg.time, msg.String(), tt.result)
 		}
 	}
 }

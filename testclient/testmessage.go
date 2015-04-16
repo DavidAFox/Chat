@@ -17,7 +17,7 @@ func (t TestMessage) Result() string {
 }
 
 //newTestMessage creates a new TestMessage.
-func newTestMessage (name, message string) *TestMessage {
+func newTestMessage(name, message string) *TestMessage {
 	msg := new(TestMessage)
 	msg.Name = name
 	msg.Text = message

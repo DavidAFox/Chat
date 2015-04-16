@@ -1,25 +1,25 @@
 package testclient
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"testing"
-	"bytes"
-	"net"
 )
 
 //HTTPClient is a Client used for testing the server's HTTP side.
 type HTTPClient struct {
-	name string
-	token string
-	room string
-	client *http.Client
-	test *testing.T
-	res *Result
+	name     string
+	token    string
+	room     string
+	client   *http.Client
+	test     *testing.T
+	res      *Result
 	messages []string
-	ip string
-	port string
+	ip       string
+	port     string
 }
 
 //NewHTTPClient returns a new http client.
@@ -28,7 +28,7 @@ func NewHTTPClient(name string, ip string, port string, rh *ResultHandler, t *te
 	cl.name = name
 	cl.client = &http.Client{}
 	cl.test = t
-	cl.res = NewResult(name,rh)
+	cl.res = NewResult(name, rh)
 	cl.ip = ip
 	cl.port = port
 	return cl
@@ -39,15 +39,14 @@ func (cl *HTTPClient) Name() string {
 	return cl.name
 }
 
-
 //Login connects the client to the server and sets the clients token for future requests.
 func (cl *HTTPClient) Login() {
-	enc, err :=json.Marshal(cl.Name())
+	enc, err := json.Marshal(cl.Name())
 	if err != nil {
 		cl.test.Errorf("HTTP Login() Error encoding: %v", err)
 	}
-	req, err:= http.NewRequest("POST", fmt.Sprintf("http://%v/login",net.JoinHostPort(cl.ip, cl.port)),bytes.NewReader(enc))
-	resp, err:= cl.client.Do(req)
+	req, err := http.NewRequest("POST", fmt.Sprintf("http://%v/login", net.JoinHostPort(cl.ip, cl.port)), bytes.NewReader(enc))
+	resp, err := cl.client.Do(req)
 	if resp == nil {
 		panic("Error with login. No response")
 	}
@@ -61,7 +60,7 @@ func (cl *HTTPClient) Login() {
 
 //Join adds the client to a room and updates its results.
 func (cl *HTTPClient) Join(rmName string) {
-	req, err := http.NewRequest("POST", fmt.Sprintf("http://%v/rooms/%v/join",net.JoinHostPort(cl.ip, cl.port), rmName), nil)
+	req, err := http.NewRequest("POST", fmt.Sprintf("http://%v/rooms/%v/join", net.JoinHostPort(cl.ip, cl.port), rmName), nil)
 	if err != nil {
 		cl.test.Errorf("HTTP Join() Error making post request: %v", err)
 	}
@@ -83,11 +82,11 @@ func (cl *HTTPClient) Join(rmName string) {
 
 //Send transmits the message to the clients room and updates its results.
 func (cl *HTTPClient) Send(msg string) {
-	enc, err :=json.Marshal(msg)
+	enc, err := json.Marshal(msg)
 	if err != nil {
-		cl.test.Errorf("HTTP Send() Error encoding message in Send: %v",err)
+		cl.test.Errorf("HTTP Send() Error encoding message in Send: %v", err)
 	}
-	req, err := http.NewRequest("POST", fmt.Sprintf("http://%v/messages",net.JoinHostPort(cl.ip, cl.port)), bytes.NewReader(enc))
+	req, err := http.NewRequest("POST", fmt.Sprintf("http://%v/messages", net.JoinHostPort(cl.ip, cl.port)), bytes.NewReader(enc))
 	if err != nil {
 		cl.test.Errorf("HTTP Send() Error making new request: %v", err)
 	}
@@ -100,7 +99,7 @@ func (cl *HTTPClient) Send(msg string) {
 		if resp.StatusCode != 200 {
 			cl.test.Errorf("HTTP Send() got: %v want: 200", resp.StatusCode)
 		}
-		cl.res.Send(fmt.Sprintf("[%v]: %v", cl.Name(),msg))
+		cl.res.Send(fmt.Sprintf("[%v]: %v", cl.Name(), msg))
 	} else {
 		cl.res.Add("You're not in a room.  Type /join roomname to join a room or /help for other commands.")
 	}
@@ -112,7 +111,7 @@ func (cl *HTTPClient) Block(name string) {
 	if err != nil {
 		cl.test.Errorf("HTTP Block() Error encodiong name: %v", err)
 	}
-	req, err := http.NewRequest("POST", fmt.Sprintf("http://%v/block",net.JoinHostPort(cl.ip, cl.port)), bytes.NewReader(enc))
+	req, err := http.NewRequest("POST", fmt.Sprintf("http://%v/block", net.JoinHostPort(cl.ip, cl.port)), bytes.NewReader(enc))
 	if err != nil {
 		cl.test.Errorf("HTTP Block() Error making request: %v", err)
 	}
@@ -125,7 +124,7 @@ func (cl *HTTPClient) Block(name string) {
 		cl.messages = append(cl.messages, "You can't block yourself.")
 		cl.res.Add("You can't block yourself.")
 	} else {
-		cl.messages = append(cl.messages, fmt.Sprintf("Now Blocking %v.",name))
+		cl.messages = append(cl.messages, fmt.Sprintf("Now Blocking %v.", name))
 		cl.res.Block(name)
 		cl.res.Add(fmt.Sprintf("Now Blocking %v.", name))
 	}
@@ -137,7 +136,7 @@ func (cl *HTTPClient) UnBlock(name string) {
 	if err != nil {
 		cl.test.Errorf("HTTP UnBlock() Error encoding name: %v", err)
 	}
-	req, err := http.NewRequest("POST", fmt.Sprintf("http://%v/unblock",net.JoinHostPort(cl.ip, cl.port)), bytes.NewReader(enc))
+	req, err := http.NewRequest("POST", fmt.Sprintf("http://%v/unblock", net.JoinHostPort(cl.ip, cl.port)), bytes.NewReader(enc))
 	if err != nil {
 		cl.test.Errorf("HTTP UnBlock() Error making request: %v", err)
 	}
@@ -156,9 +155,9 @@ func (cl *HTTPClient) UnBlock(name string) {
 		cl.messages = append(cl.messages, fmt.Sprintf("No longer blocking %v.", name))
 	}
 	if !found {
-		cl.messages= append(cl.messages,fmt.Sprintf("You are not blocking %v.", name))
+		cl.messages = append(cl.messages, fmt.Sprintf("You are not blocking %v.", name))
 	}
-	if cl.res.UnBlock(name){
+	if cl.res.UnBlock(name) {
 		cl.res.Add(fmt.Sprintf("No longer blocking %v.", name))
 	} else {
 		cl.res.Add(fmt.Sprintf("You are not blocking %v.", name))
@@ -170,12 +169,12 @@ func (cl *HTTPClient) Who(rmName string) {
 	var req *http.Request
 	var err error
 	if rmName != "" {
-		req, err = http.NewRequest("GET", fmt.Sprintf("http://%v/rooms/%v/who",net.JoinHostPort(cl.ip, cl.port), rmName) ,nil)
+		req, err = http.NewRequest("GET", fmt.Sprintf("http://%v/rooms/%v/who", net.JoinHostPort(cl.ip, cl.port), rmName), nil)
 		if err != nil {
 			cl.test.Errorf("HTTP Who() Error making new request: %v", err)
 		}
 	} else {
-		req, err = http.NewRequest("GET", fmt.Sprintf("http://%v/rooms/who",net.JoinHostPort(cl.ip, cl.port)), nil)
+		req, err = http.NewRequest("GET", fmt.Sprintf("http://%v/rooms/who", net.JoinHostPort(cl.ip, cl.port)), nil)
 		if err != nil {
 			cl.test.Errorf("HTTP Who() Error making new request: %v", err)
 		}
@@ -198,13 +197,13 @@ func (cl *HTTPClient) Who(rmName string) {
 		cl.test.Errorf("HTTP Who() Error decoding room: %v", err)
 	}
 	clientlist := make([]string, 0, 0)
-	err =dec.Decode(&clientlist)
+	err = dec.Decode(&clientlist)
 	if err != nil {
 		cl.test.Errorf("HTTP Who() Error decoding clientlist: %v", err)
 	}
 	cl.messages = append(cl.messages, fmt.Sprintf("Room: %v", room))
 	for _, i := range clientlist {
-		cl.messages= append(cl.messages, i)
+		cl.messages = append(cl.messages, i)
 	}
 	resp.Body.Close()
 	cl.res.Who(rmName)
@@ -212,7 +211,7 @@ func (cl *HTTPClient) Who(rmName string) {
 
 //List retrieves from the server a list of current rooms and updates its results.
 func (cl *HTTPClient) List() {
-	req, err := http.NewRequest("GET", fmt.Sprintf("http://%v/rooms/list",net.JoinHostPort(cl.ip, cl.port)), nil)
+	req, err := http.NewRequest("GET", fmt.Sprintf("http://%v/rooms/list", net.JoinHostPort(cl.ip, cl.port)), nil)
 	if err != nil {
 		cl.test.Errorf("HTTP List() Error making request: %v", err)
 	}
@@ -228,7 +227,7 @@ func (cl *HTTPClient) List() {
 	}
 	cl.messages = append(cl.messages, "Rooms:")
 	for _, i := range list {
-		cl.messages = append(cl.messages,i)
+		cl.messages = append(cl.messages, i)
 	}
 	resp.Body.Close()
 	cl.res.List()
@@ -266,13 +265,13 @@ func (cl *HTTPClient) CheckResponse() {
 	}
 	for i := range cl.res.Results {
 		if cl.res.Results[i] != RemoveTime(cl.messages[i]) {
-			cl.test.Errorf("HTTP CheckResponse got %v want %v.",RemoveTime(cl.messages[i]),cl.res.Results[i])
+			cl.test.Errorf("HTTP CheckResponse got %v want %v.", RemoveTime(cl.messages[i]), cl.res.Results[i])
 			cl.test.Errorf("Name: %v\nResults: %v\nMessages: %v\n", cl.name, cl.res.Results, cl.messages)
 			for x := range cl.res.Results {
-				cl.test.Errorf("\nResult:  %v\nMessage: %v\n\n\n",cl.res.Results[x], cl.messages[x])
+				cl.test.Errorf("\nResult:  %v\nMessage: %v\n\n\n", cl.res.Results[x], cl.messages[x])
 			}
-			cl.test.Errorf("\nResult: %v",cl.res.Results[len(cl.res.Results) -1])
-			cl.test.Errorf("\nResult#: %v   Message#: %v\n",len(cl.res.Results), len(cl.messages))
+			cl.test.Errorf("\nResult: %v", cl.res.Results[len(cl.res.Results)-1])
+			cl.test.Errorf("\nResult#: %v   Message#: %v\n", len(cl.res.Results), len(cl.messages))
 			break
 		}
 	}
@@ -282,4 +281,3 @@ func (cl *HTTPClient) CheckResponse() {
 func (cl *HTTPClient) Update() {
 	cl.GetMessages()
 }
-

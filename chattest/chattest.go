@@ -1,26 +1,26 @@
 package chattest
 
 import (
-	"github.com/davidafox/gentest"
 	"github.com/davidafox/chat/testclient"
-	"testing"
-	"os"
+	"github.com/davidafox/gentest"
 	"io"
+	"os"
+	"testing"
 )
 
 //Test represents a particular test.
 type Test struct {
-	httpIP string
-	httpPort string
-	telnetIP string
-	telnetPort string
-	httpClients int
+	httpIP        string
+	httpPort      string
+	telnetIP      string
+	telnetPort    string
+	httpClients   int
 	telnetClients int
-	restClients int
-	commands int
-	rooms int
-	test *testing.T
-	handler *testclient.ResultHandler
+	restClients   int
+	commands      int
+	rooms         int
+	test          *testing.T
+	handler       *testclient.ResultHandler
 }
 
 //New creates a new test with default values.
@@ -87,7 +87,7 @@ func (ct *Test) SetTelnetPort(port string) {
 
 //NewTelnetClient returns a new TestClient using telnet.
 func (ct *Test) NewTelnetClient(name string) *testclient.TestClient {
-	telnet := testclient.NewTelnetClient(name,ct.telnetIP,ct.telnetPort,ct.handler,ct.test)
+	telnet := testclient.NewTelnetClient(name, ct.telnetIP, ct.telnetPort, ct.handler, ct.test)
 	telnet.Login()
 	cl := testclient.NewTestClient(telnet)
 	return cl
@@ -95,7 +95,7 @@ func (ct *Test) NewTelnetClient(name string) *testclient.TestClient {
 
 //NewHTTPClient returns a new TestClient using HTTP.
 func (ct *Test) NewHTTPClient(name string) *testclient.TestClient {
-	http := testclient.NewHTTPClient(name,ct.httpIP,ct.httpPort,ct.handler,ct.test)
+	http := testclient.NewHTTPClient(name, ct.httpIP, ct.httpPort, ct.handler, ct.test)
 	http.Login()
 	cl := testclient.NewTestClient(http)
 	return cl
@@ -103,42 +103,42 @@ func (ct *Test) NewHTTPClient(name string) *testclient.TestClient {
 
 //NewRestClient returns a new TestClient using the REST interface.
 func (ct *Test) NewRestClient(name string) *testclient.TestClient {
-	rest := testclient.NewRestClient(name,ct.httpIP, ct.httpPort, ct.handler, ct.test)
+	rest := testclient.NewRestClient(name, ct.httpIP, ct.httpPort, ct.handler, ct.test)
 	cl := testclient.NewTestRestClient(rest)
 	return cl
 }
 
 //Run starts the test.
 func (ct *Test) Run() {
-	clients := make([]gentest.Actor,ct.httpClients + ct.telnetClients + ct.restClients, ct.httpClients + ct.telnetClients+ ct.restClients)
-	clientNames := make([]string, ct.httpClients + ct.telnetClients, ct.httpClients+ct.telnetClients)
+	clients := make([]gentest.Actor, ct.httpClients+ct.telnetClients+ct.restClients, ct.httpClients+ct.telnetClients+ct.restClients)
+	clientNames := make([]string, ct.httpClients+ct.telnetClients, ct.httpClients+ct.telnetClients)
 	var name string
-	for i := 0; i<ct.httpClients; i++ {
+	for i := 0; i < ct.httpClients; i++ {
 		name = testclient.RandomString(15)
 		clientNames[i] = name
 		clients[i] = ct.NewHTTPClient(name)
 	}
-	for i := 0; i<ct.telnetClients; i++ {
+	for i := 0; i < ct.telnetClients; i++ {
 		name = testclient.RandomString(15)
 		clientNames[i+ct.httpClients] = name
 		clients[i+ct.httpClients] = ct.NewTelnetClient(name)
 	}
-	for i := 0; i<ct.restClients; i++ {
+	for i := 0; i < ct.restClients; i++ {
 		name = testclient.RandomString(15)
-//		clientNames[i+ct.httpClients+ct.telnetClients] = name	//rest client names are not being added to the list of potential clients to block
+		//		clientNames[i+ct.httpClients+ct.telnetClients] = name	//rest client names are not being added to the list of potential clients to block
 		clients[i+ct.httpClients+ct.telnetClients] = ct.NewRestClient(name)
 	}
 	roomNames := make([]string, ct.rooms, ct.rooms)
-	for i := 0; i<ct.rooms; i++ {
+	for i := 0; i < ct.rooms; i++ {
 		roomNames[i] = testclient.RandomString(15)
 	}
 	shared := new(testclient.ClientData)
 	shared.Rooms = roomNames
 	shared.Names = clientNames
 	for i := range clients {
-		shared.Clients = append(shared.Clients,clients[i].(*testclient.TestClient).Client())
+		shared.Clients = append(shared.Clients, clients[i].(*testclient.TestClient).Client())
 	}
-	test := gentest.New("test",clients,shared)
+	test := gentest.New("test", clients, shared)
 	test.SetCommands(ct.commands)
 	test.Run()
 	f, err := os.Create("Test_Actions")
@@ -146,13 +146,13 @@ func (ct *Test) Run() {
 		panic("Error opening file")
 	}
 	actions := test.Actions()
-	for i:= range actions {
-		_, err = io.WriteString(f,actions[i]+"\n")
+	for i := range actions {
+		_, err = io.WriteString(f, actions[i]+"\n")
 		if err != nil {
 			panic("Error writing to file")
 		}
 	}
-	for i:= range shared.Clients {
+	for i := range shared.Clients {
 		shared.Clients[i].CheckResponse()
 	}
 }
