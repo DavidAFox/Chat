@@ -1,4 +1,4 @@
-package chattest
+package testclient
 
 import (
 	"net"
@@ -23,18 +23,31 @@ type TelnetClient struct {
 	port string
 }
 
+//NewTelnetClient returns a new telnet client.
+func NewTelnetClient(name string, ip string, port string, rh *ResultHandler, t *testing.T) *TelnetClient {
+	cl := new(TelnetClient)
+	cl.name = name
+	cl.test = t
+	cl.res = NewResult(name,rh)
+	cl.ip = ip
+	cl.port = port
+	return cl
+}
+
 //Name returns the clients name.
 func (cl TelnetClient) Name() string {
 	return cl.name
 }
-
 
 //Login connects the client to the server and starts GetMessages, its messages retrieval method.
 func (cl *TelnetClient) Login() {
 	var err error
 	cl.conn, err = net.Dial("tcp", net.JoinHostPort(cl.ip, cl.port))
 	if err != nil {
-		cl.test.Errorf("Telnet Login() Error connecting in TestRestHandler: %v", err)
+		cl.test.Errorf("Telnet Login() Error connecting: %v", err)
+	}
+	if cl.conn == nil {
+		panic("Error with login. No connection.")
 	}
 	_, err = io.WriteString(cl.conn, cl.name + "\n")
 	if err != nil {
@@ -45,7 +58,6 @@ func (cl *TelnetClient) Login() {
 
 //Join adds the client to a room and updates its results.
 func (cl *TelnetClient) Join(rm string) {
-	cl.checkupdate()
 	_, err := io.WriteString(cl.conn, fmt.Sprintf("/join %v\n", rm))
 	if err != nil {
 		cl.test.Errorf("Telnet Join() Error writing join in Room:%v :%v", rm, err)
@@ -62,12 +74,10 @@ func (cl *TelnetClient) Join(rm string) {
 	cl.room = rm
 	cl.res.Join(rm)
 	cl.res.JoinSend(fmt.Sprintf("%v has joined the room.", cl.Name()))
-	cl.checkupdate()
 }
 
 //Send transmits the message to the clients room and updates its results.
 func (cl *TelnetClient) Send(m string) {
-	cl.checkupdate()
 	if m[0] == '/' {
 		cl.test.Errorf("Telnet Send() Error command in Send: %v", m)
 		return
@@ -81,12 +91,10 @@ func (cl *TelnetClient) Send(m string) {
 	}else {
 		cl.res.Send(fmt.Sprintf("[%v]: %v",cl.Name(),m))
 	}
-	cl.checkupdate()
 }
 
 //Block adds name to client's block list and updates its results.
 func (cl *TelnetClient) Block(name string) {
-	cl.checkupdate()
 	_, err := io.WriteString(cl.conn, fmt.Sprintf("/block %v\n", name))
 	if err != nil {
 		cl.test.Errorf("Telnet Block() Error writing: %v", err)
@@ -97,12 +105,10 @@ func (cl *TelnetClient) Block(name string) {
 		cl.res.Block(name)
 		cl.res.Add(fmt.Sprintf("Now Blocking %v.", name))
 	}
-	cl.checkupdate()
 }
 
 //UnBlock removes clients matching name from this client's block list and updates its results.
 func (cl *TelnetClient) UnBlock(name string) {
-	cl.checkupdate()
 	_, err := io.WriteString(cl.conn, fmt.Sprintf("/unblock %v\n", name))
 	if err != nil {
 		cl.test.Errorf("Telnet UnBlock() Error writing: %v", err)
@@ -112,29 +118,24 @@ func (cl *TelnetClient) UnBlock(name string) {
 	}else{
 		cl.res.Add(fmt.Sprintf("You are not blocking %v.", name))
 	}
-	cl.checkupdate()
 }
 
 //Who retrieves from the server a list of the clients currently in the room and updates its results.
 func (cl *TelnetClient) Who(rm string) {
-	cl.checkupdate()
 	_, err := io.WriteString(cl.conn, fmt.Sprintf("/who %v\n", rm))
 	if err != nil {
 		cl.test.Errorf("Telnet Who() Error writing: %v", err)
 	}
 	cl.res.Who(rm)
-	cl.checkupdate()
 }
 
 //List retrieves from the server a list of current rooms and updates its results.
 func (cl *TelnetClient) List() {
-	cl.checkupdate()
 	_, err := io.WriteString(cl.conn, "/list\n")
 	if err != nil {
 		cl.test.Errorf("Telnet List() Error writing: %v", err)
 	}
 	cl.res.List()
-	cl.checkupdate()
 }
 
 //GetMessages reads the messages from the server and stores them in the clients messages

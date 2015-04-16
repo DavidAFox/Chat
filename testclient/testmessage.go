@@ -1,4 +1,4 @@
-package chattest
+package testclient
 
 import (
 	"fmt"

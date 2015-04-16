@@ -331,12 +331,6 @@ func (cl *ClientHTTP) Join(w http.ResponseWriter, rq *http.Request) {
 	cl.room = rm
 	rm.Add(cl)
 	}
-//	cl.clients.Add(cl)
-//	enc := json.NewEncoder(w)
-//	err := enc.Encode(cl.token)
-//	if err != nil {
-//		log.Println("Error encoding client token in join: ", err)
-//	}
 	cl.room.Tell(fmt.Sprintf("%v has joined the room.", cl.Name()))
 }
 
@@ -417,17 +411,7 @@ func (h *roomHandler) CheckToken(rq *http.Request) bool{
 //GetClient returns the client associated with the "Autorization" token in the header of the request if they are found.  If the Client is not present in the map a new client is created and returned.
 func (h *roomHandler) GetClient(rq *http.Request) *ClientHTTP{
 	if !h.CheckToken(rq) {
-//		path := strings.Split(rq.URL.Path, "/")
-		var name string
-//		if len(path) == 4 && path[3] == "join" {
-//			dec := json.NewDecoder(rq.Body)
-//			err := dec.Decode(&name)
-//			if err != nil {
-//				log.Println ("Error decoding in GetClient: ", err)
-//			}
-//		} else {
-			name = "Anon"
-//		}
+		name := "Anon"
 		cl := NewClientHTTP(name, h.rooms, h.chl, h.clients)
 		return cl
 	}
@@ -463,7 +447,7 @@ func (h *roomHandler) ServeHTTP (w http.ResponseWriter, rq *http.Request) {
 				w.WriteHeader(http.StatusNotFound)
 				return
 			}
-			if !h.CheckToken(rq) /*&& (path[3] != "join" && path[3] != "who")*/ {
+			if !h.CheckToken(rq) {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}

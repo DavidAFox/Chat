@@ -1,14 +1,25 @@
-package chattest
+package testclient
 
 import (
 	"sort"
 	"fmt"
 )
 
-//NewResult is a method on the chattest object that creates new Result objects.
-func (t *ChatTest) NewResult(name string) *Result {
-	return NewResult(t.join, name, t.list)
+//ResultHandler manages the result rooms and the interactions between the results of different clients.
+type ResultHandler struct {
+	join chan *joinrq
+	list chan chan []string
 }
+
+//NewResultHandler creates a new ResultHandler.
+func NewResultHandler() *ResultHandler {
+	rh := new(ResultHandler)
+	rh.join = make(chan *joinrq)
+	rh.list = make(chan chan []string)
+	go rh.roomManager()
+	return rh
+}
+
 //Result is an object for keeping track of what responses the client should be getting from the server.  Result.Results contains all of the messages that should have been sent to the client.
 type Result struct {
 	Results []string
@@ -22,13 +33,13 @@ type Result struct {
 
 
 //NewResult creates a new result object without a chattest.
-func NewResult(j chan *joinrq, name string, l chan chan []string) *Result {
+func NewResult(name string, rh *ResultHandler) *Result {
 	r := new(Result)
-	r.join = j
+	r.join = rh.join
 	r.client = &roomClient{name,make(chan *rMessage), make(chan bool), make(chan bool)}
 	r.Results = make([]string, 0,10)
 	r.blocklist = make([]string, 0, 10)
-	r.list = l
+	r.list = rh.list
 	go r.update()
 	return r
 }
@@ -103,6 +114,34 @@ func (r *Result) Who(name string) {
 	for i := range clist {
 		r.Add(clist[i])
 	}
+}
+
+//RestGet updates the Result for a rest client getting messages.
+func (r *Result) RestGet(name string) {
+	var rm *room
+	if name == "" {
+		return
+	}
+	rm = r.GetRoom(name)
+	if rm == nil {
+		r.Add("Room not Found")
+		return
+	}
+	for i := range rm.messages {
+		r.Add(rm.messages[i])
+	}
+}
+
+//RestSend updates all results for a rest client sending a message.
+func (r *Result) RestSend(message,room string) {
+	m := NewRMessage(r.client.name, message, r.client.done)
+	rm := r.GetRoom(room)
+	if rm == nil {
+		r.Add("Room not Found")
+		return
+	}
+	rm.in<-m
+	<-r.client.done
 }
 
 //Room returns the name of the room the Result is currently "in."
@@ -280,11 +319,11 @@ func getroom (name string, l []*room) *room {
 }
 
 //roomManager is started when a new test is created and handles the creation of rooms, the roomlist, and sending clients to the right room.
-func roomManager (join chan *joinrq, list chan chan []string) {
+func (rh *ResultHandler) roomManager () {
 	roomlist := make([]*room,0,0)
 	for {
 		select{
-			case j := <-join:
+			case j := <-rh.join:
 				rm := getroom(j.room, roomlist)
 				if rm == nil && j.client != nil{
 					rm = newRoom(j.room)
@@ -295,7 +334,7 @@ func roomManager (join chan *joinrq, list chan chan []string) {
 				} else {
 					j.response<-rm
 				}
-			case r := <-list:
+			case r := <-rh.list:
 				rlist := make([]string, 0, 0)
 				for i:= range roomlist {
 					rlist = append(rlist, roomlist[i].name)
