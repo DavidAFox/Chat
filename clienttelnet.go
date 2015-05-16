@@ -3,6 +3,7 @@ package main
 import (
 	"container/list"
 	"fmt"
+	"github.com/davidafox/chat/clientdata"
 	"io"
 	"log"
 	"net"
@@ -20,6 +21,7 @@ type ClientTelnet struct {
 	room       *Room
 	rooms      *RoomList
 	ChatLog    *os.File
+	data       clientdata.ClientData
 }
 
 //Name returns the name of the client.
@@ -28,7 +30,7 @@ func (cl *ClientTelnet) Name() string {
 }
 
 //NewClient creates and returns a new client.
-func NewClientTelnet(name string, conn net.Conn, rooms *RoomList, chl *os.File) *ClientTelnet {
+func NewClientTelnet(name string, conn net.Conn, rooms *RoomList, chl *os.File, cd clientdata.ClientData) *ClientTelnet {
 	cl := new(ClientTelnet)
 	cl.name = name
 	cl.connection = conn
@@ -36,6 +38,7 @@ func NewClientTelnet(name string, conn net.Conn, rooms *RoomList, chl *os.File) 
 	cl.room = nil
 	cl.rooms = rooms
 	cl.ChatLog = chl
+	cl.data = cd
 	return cl
 }
 
@@ -49,11 +52,10 @@ func (cl *ClientTelnet) Equals(other Client) bool {
 
 //IsBlocked checks if other is blocked by the client.
 func (cl *ClientTelnet) IsBlocked(other Client) (blocked bool) {
-	blocked = false
-	for i := cl.blocked.Front(); i != nil; i = i.Next() {
-		if i.Value == other.Name() {
-			blocked = true
-		}
+	var err error
+	blocked, err = cl.data.IsBlocked(other.Name())
+	if err != nil {
+		log.Println("Error Telnet IsBlocked: ", err)
 	}
 	return
 }
@@ -64,20 +66,19 @@ func (cl *ClientTelnet) UnBlock(name []string) {
 		cl.Tell("Must enter user to unblock")
 		return
 	}
-	clname := strings.Join(name, " ")
-	found := false
-	for i, x := cl.blocked.Front(), cl.blocked.Front(); i != nil; {
-		x = i
-		i = i.Next()
-		if x.Value == clname {
-			cl.blocked.Remove(x)
-			found = true
-		}
+	clname := name[0]
+	if !clientdata.ValidateName(clname) {
+		cl.Tell("Invalid name.  Name must be alphanumeric characters only.")
+		return
 	}
-	if found {
-		cl.Tell(fmt.Sprintf("No longer blocking %v.", clname))
-	} else {
+	err := cl.data.Unblock(clname)
+	switch {
+	case err == clientdata.ErrNotBlocking:
 		cl.Tell(fmt.Sprintf("You are not blocking %v.", clname))
+	case err != nil:
+		log.Println("Telnet UnBlock: ", err)
+	default:
+		cl.Tell(fmt.Sprintf("No longer blocking %v.", clname))
 	}
 }
 
@@ -87,13 +88,24 @@ func (cl *ClientTelnet) Block(name []string) {
 		cl.Tell("Must enter user to block")
 		return
 	}
-	clname := strings.Join(name, " ")
+	clname := name[0]
+	if !clientdata.ValidateName(clname) {
+		cl.Tell("Invalid name.  Name must be alphanumeric characters only.")
+		return
+	}
 	if clname == cl.Name() {
 		cl.Tell("You can't block yourself.")
 		return
 	}
-	cl.blocked.PushBack(clname)
-	cl.Tell(fmt.Sprintf("Now Blocking %v.", clname))
+	err := cl.data.Block(clname)
+	switch {
+	case err == clientdata.ErrBlocking:
+		cl.Tell(fmt.Sprintf("You are already blocking %v.", clname))
+	case err != nil:
+		log.Println("Error Telnet Block: ", err)
+	default:
+		cl.Tell(fmt.Sprintf("Now Blocking %v.", clname))
+	}
 }
 
 //Leave removes cl from current room.
@@ -140,22 +152,6 @@ func (cl *ClientTelnet) Recieve(m Message) {
 	}
 }
 
-/*
-//Refresh clears the clients screen and then sends them all the messages sent in the room they are in.
-func (cl ClientTelnet) Refresh () error {
-	if cl.room != nil {
-		cl.Cls()
-		for i := cl.room.Messages.Front(); i != nil; i = i.Next() {
-			_, err := io.WriteString(cl.connection,fmt.Sprint(i.Value.(Message)))
-			if err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-*/
-
 //Who sends to the client a list of all the people in the same room as the client.
 func (cl *ClientTelnet) Who(rms []string) {
 	var clist []string
@@ -180,15 +176,6 @@ func (cl *ClientTelnet) Who(rms []string) {
 		cl.Tell(i)
 	}
 }
-
-/*
-//Cls sends then client 100 new lines to clear their screen.
-func (cl *ClientTelnet) Cls () {
-	for i := 0; i<100;i++ {
-		cl.Tell("")
-	}
-}
-*/
 
 //List sends to the client a list of the current open rooms.
 func (cl *ClientTelnet) List() {
@@ -215,7 +202,11 @@ func (cl *ClientTelnet) Join(rms []string) {
 		cl.Tell("Must enter a Room to join")
 		return
 	}
-	name := strings.Join(rms, " ")
+	name := rms[0]
+	if !clientdata.ValidateName(name) {
+		cl.Tell("Invalid room name.  Name must be alphanumeric characters only.")
+		return
+	}
 	cl.Leave() //leave old room first
 	rm := cl.rooms.FindRoom(name)
 	if rm == nil {
@@ -284,17 +275,97 @@ func readString(conn net.Conn) (string, error) {
 	return strings.TrimSuffix(ip, "\r"), err
 }
 
-//handleConnection handles overall telnet connection.
-func handleConnection(conn net.Conn, rooms *RoomList, chl *os.File) {
-	_, err := io.WriteString(conn, "What is your name? ") //set up the client
+//TelnetRegister is used to create new accounts using a telnet connection.
+func TelnetRegister(conn net.Conn, cd clientdata.ClientData) {
+	for {
+		name := getInput(conn, "Enter Name.")
+		if clientdata.ValidateName(name) {
+			exists, err := cd.ClientExists(name)
+			if err != nil {
+				log.Println(err)
+			}
+			if !exists {
+				pword1 := getInput(conn, "Enter Password.")
+				pword2 := getInput(conn, "Please enter Password again.")
+				for pword1 != pword2 {
+					pword1 = getInput(conn, "Passwords don't match. Enter Password.")
+					pword2 = getInput(conn, "Please enter Password again.")
+				}
+				cd.SetName(name)
+				err := cd.NewClient(pword1)
+				if err != nil {
+					log.Println("Error registering client", err)
+					_, err = io.WriteString(conn, "Error creating account.\n\r")
+					if err != nil {
+						log.Println("Error Writing in TelnetRegister", err)
+					}
+				} else {
+					_, err = io.WriteString(conn, "Account Created.\n\r")
+					if err != nil {
+						log.Println("Error Writing in TelnetRegister", err)
+					}
+				}
+				return
+			}
+			_, err = io.WriteString(conn, "A client with that name already exists.\n\r")
+			if err != nil {
+				log.Println("Error Writing", err)
+			}
+		} else {
+			_, err := io.WriteString(conn, "Invalid Name.  Name must be alphanumeric characters only.")
+			if err != nil {
+				log.Println("Error Writing", err)
+			}
+		}
+	}
+}
+
+//getInput sends the text string and then returns the response from the connection.
+func getInput(conn net.Conn, text string) string {
+	_, err := io.WriteString(conn, text+"\n\r")
 	if err != nil {
 		log.Println("Error Writing", err)
 	}
-	name, err := readString(conn)
+	response, err := readString(conn)
 	if err != nil {
 		log.Println("Error Reading", err)
 	}
-	cl := NewClientTelnet(name, conn, rooms, chl)
+	return response
+}
+
+//TelnetLogin is used to initiate clients.
+func TelnetLogin(conn net.Conn, rooms *RoomList, chl *os.File, cd clientdata.ClientData) {
+	logged := false
+	var name string
+	var err error
+	for !logged {
+		name = getInput(conn, "Enter Name or /new to create a new account.")
+		if name == "/new" {
+			TelnetRegister(conn, cd)
+		} else if clientdata.ValidateName(name) {
+			cd.SetName(name)
+			pword := getInput(conn, "Enter Password.")
+			logged, err = cd.Authenticate(pword)
+			if err != nil {
+				log.Println("Error Autheticating: ", err)
+			}
+			if logged == false {
+				io.WriteString(conn, "User name and Password do not match.\n\r")
+			}
+		} else {
+			_, err = io.WriteString(conn, "Invalid name.  Name must be alphanumeric characters only.")
+			if err != nil {
+				log.Println("Error Writing: ", err)
+			}
+		}
+	}
+	cl := NewClientTelnet(name, conn, rooms, chl, cd)
+	cl.Tell("Welcome")
+	go cl.inputhandler()
+}
+
+//inputhandler processes command from telnet connections.
+func (cl *ClientTelnet) inputhandler() {
 	for {
 		input, err := readString(cl.connection)
 		if err != nil {

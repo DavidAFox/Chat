@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/davidafox/chat/chattest"
+	"github.com/davidafox/chat/clientdata"
+	"github.com/davidafox/chat/testclient/testclientdata"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -19,7 +21,7 @@ const TelnetTestIP = "localhost"
 const TelnetTestPort = "8000"
 const TestChatLog = "Chatlog_Test"
 
-var TestConf config = config{TelnetTestIP, TelnetTestPort, HTTPTestIP, HTTPTestPort, TestChatLog}
+var TestConf config = config{ListeningIP: TelnetTestIP, ListeningPort: TelnetTestPort, HTTPListeningIP: HTTPTestIP, HTTPListeningPort: HTTPTestPort, LogFile: TestChatLog}
 
 var TestMessages = []TestMessage{
 	{"Bob", "Hello World"},
@@ -53,7 +55,7 @@ func TestConfigure(t *testing.T) {
 		fmt.Println("Error creating file in TestConfigure: ", err)
 	}
 	enc := json.NewEncoder(f)
-	fconf := config{"192.168.1.54", "8000", "129.124.12.1", "4004", "Logfile"}
+	fconf := config{ListeningIP: "192.168.1.54", ListeningPort: "8000", HTTPListeningIP: "129.124.12.1", HTTPListeningPort: "4004", LogFile: "Logfile"}
 	err = enc.Encode(&fconf)
 	if err != nil {
 		fmt.Println("Error encoding in Testconfigure: ", err)
@@ -65,9 +67,9 @@ func TestConfigure(t *testing.T) {
 }
 
 //NewTestHTTPServer sets up an http test server with the roomhandler and resthandler.
-func NewTestHTTPServer(rooms *RoomList, chl *os.File, conf *config) *httptest.Server {
+func NewTestHTTPServer(rooms *RoomList, chl *os.File, conf *config, df clientdata.Factory) *httptest.Server {
 	m := http.NewServeMux()
-	room := newRoomHandler(rooms, chl)
+	room := newRoomHandler(rooms, chl, df)
 	m.Handle("/", room)
 	rest := newRestHandler(rooms, chl)
 	m.Handle("/rest/", rest)
@@ -91,8 +93,9 @@ func TestHTTPAndTelnet(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	ts := NewTelnetServer(rooms, chl, conf)
-	hs := NewTestHTTPServer(rooms, chl, conf)
+	df := new(testclientdata.Factory)
+	ts := NewTelnetServer(rooms, chl, conf, df)
+	hs := NewTestHTTPServer(rooms, chl, conf, df)
 	ip, port, err := getIPPort(hs.URL)
 	if err != nil {
 		panic(err)
@@ -119,7 +122,8 @@ func TestHTTP(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	hs := NewTestHTTPServer(rooms, chl, conf)
+	df := new(testclientdata.Factory)
+	hs := NewTestHTTPServer(rooms, chl, conf, df)
 	ip, port, err := getIPPort(hs.URL)
 	if err != nil {
 		panic(err)
@@ -144,7 +148,8 @@ func TestTelnet(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	ts := NewTelnetServer(rooms, chl, conf)
+	df := new(testclientdata.Factory)
+	ts := NewTelnetServer(rooms, chl, conf, df)
 	go ts.Start()
 	te := chattest.New(t)
 	te.SetHTTPClients(0)

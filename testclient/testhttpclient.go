@@ -39,16 +39,22 @@ func (cl *HTTPClient) Name() string {
 	return cl.name
 }
 
+type Lgn struct {
+	Name     string
+	Password string
+}
+
 //Login connects the client to the server and sets the clients token for future requests.
 func (cl *HTTPClient) Login() {
-	enc, err := json.Marshal(cl.Name())
+	l := &Lgn{Name: cl.Name(), Password: "a"}
+	enc, err := json.Marshal(l)
 	if err != nil {
 		cl.test.Errorf("HTTP Login() Error encoding: %v", err)
 	}
 	req, err := http.NewRequest("POST", fmt.Sprintf("http://%v/login", net.JoinHostPort(cl.ip, cl.port)), bytes.NewReader(enc))
 	resp, err := cl.client.Do(req)
-	if resp == nil {
-		panic("Error with login. No response")
+	if resp == nil || resp.Header.Get("success") == "false" {
+		panic("Error with login.")
 	}
 	dec := json.NewDecoder(resp.Body)
 	err = dec.Decode(&cl.token)
@@ -146,11 +152,12 @@ func (cl *HTTPClient) UnBlock(name string) {
 		cl.test.Errorf("HTTP UnBlock() Error sending request: %v", err)
 	}
 	var found bool
-	dec := json.NewDecoder(resp.Body)
-	err = dec.Decode(&found)
-	if err != nil {
-		cl.test.Errorf("HTTP UnBlock() Error decoding: %v", err)
-	}
+	/*	dec := json.NewDecoder(resp.Body)
+		err = dec.Decode(&found)
+		if err != nil {
+			cl.test.Errorf("HTTP UnBlock() Error decoding: %v", err)
+		}
+	*/found = (resp.Header.Get("success") == "true")
 	if found {
 		cl.messages = append(cl.messages, fmt.Sprintf("No longer blocking %v.", name))
 	}
@@ -215,6 +222,7 @@ func (cl *HTTPClient) List() {
 	if err != nil {
 		cl.test.Errorf("HTTP List() Error making request: %v", err)
 	}
+	req.Header.Set("Authorization", cl.token)
 	resp, err := cl.client.Do(req)
 	if err != nil {
 		cl.test.Errorf("HTTP List() Error seding request: %v", err)

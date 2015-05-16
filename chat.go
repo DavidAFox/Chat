@@ -2,7 +2,11 @@ package main
 
 /* A Chat Server */
 import (
+	"crypto/tls"
 	"encoding/json"
+	"fmt"
+	"github.com/davidafox/chat/clientdata"
+	"github.com/davidafox/chat/clientdata/datafactory"
 	"io"
 	"log"
 	"net"
@@ -26,11 +30,23 @@ type Message interface {
 
 //config stores the configuration data from the config file.
 type config struct {
-	ListeningIP       string
-	ListeningPort     string
-	HTTPListeningIP   string
-	HTTPListeningPort string
-	LogFile           string
+	ListeningIP          string
+	ListeningPort        string
+	HTTPListeningIP      string
+	HTTPListeningPort    string
+	TLSListeningIP       string
+	TLSListeningPort     string
+	TLSHTTPListeningIP   string
+	TLSHTTPListeningPort string
+	CertFile             string
+	KeyFile              string
+	LogFile              string
+	DatabaseIP           string
+	DatabasePort         string
+	DatabaseLogin        string
+	DatabasePassword     string
+	DatabaseName         string
+	DatabaseType         string
 }
 
 //configure loads the config file.
@@ -49,14 +65,37 @@ func configure(filename string) (c *config) {
 }
 
 type telnetServer struct {
-	rooms   *RoomList
-	chatlog *os.File
-	cls     chan bool
-	ln      net.Listener
-	done    bool
+	rooms       *RoomList
+	chatlog     *os.File
+	cls         chan bool
+	ln          net.Listener
+	done        bool
+	datafactory clientdata.Factory
 }
 
-func NewTelnetServer(rooms *RoomList, chl *os.File, c *config) *telnetServer {
+//NewTelnetServerTLS creates a telnet server using TLS.
+func NewTelnetServerTLS(rooms *RoomList, chl *os.File, c *config, datafactory clientdata.Factory) *telnetServer {
+	ts := new(telnetServer)
+	var err error
+	cert, err := tls.LoadX509KeyPair(c.CertFile, c.KeyFile)
+	if err != nil {
+		log.Panic(err)
+	}
+	conf := new(tls.Config)
+	conf.Certificates = append(conf.Certificates, cert)
+	ts.ln, err = tls.Listen("tcp", net.JoinHostPort(c.TLSListeningIP, c.TLSListeningPort), conf)
+	if err != nil {
+		log.Panic(err)
+	}
+	ts.cls = make(chan bool, 1)
+	ts.rooms = rooms
+	ts.chatlog = chl
+	ts.done = false
+	ts.datafactory = datafactory
+	return ts
+}
+
+func NewTelnetServer(rooms *RoomList, chl *os.File, c *config, datafactory clientdata.Factory) *telnetServer {
 	ts := new(telnetServer)
 	var err error
 	ts.ln, err = net.Listen("tcp", net.JoinHostPort(c.ListeningIP, c.ListeningPort))
@@ -67,6 +106,7 @@ func NewTelnetServer(rooms *RoomList, chl *os.File, c *config) *telnetServer {
 	ts.rooms = rooms
 	ts.chatlog = chl
 	ts.done = false
+	ts.datafactory = datafactory
 	return ts
 }
 
@@ -89,19 +129,34 @@ Outerloop:
 				log.Println(err)
 			}
 			if conn != nil {
-				go handleConnection(conn, ts.rooms, ts.chatlog)
+				go TelnetLogin(conn, ts.rooms, ts.chatlog, ts.datafactory.Create(""))
+				//				go handleConnection(conn, ts.rooms, ts.chatlog)
 			}
 		}
 	}
 }
 
-//serverHTTP sets up the http handlers and then runs ListenAndServe
-func serverHTTP(rooms *RoomList, chl *os.File, c *config) {
-	room := newRoomHandler(rooms, chl)
-	http.Handle("/", room)
+//serverHTTPTLS sets up the http handlers and then runs ListenAndServeTLS.
+func serverHTTPTLS(rooms *RoomList, chl *os.File, c *config, df clientdata.Factory) {
+	mux := http.NewServeMux()
+	room := newRoomHandler(rooms, chl, df)
+	mux.Handle("/", room)
 	rest := newRestHandler(rooms, chl)
-	http.Handle("/rest/", rest)
-	err := http.ListenAndServe(net.JoinHostPort(c.HTTPListeningIP, c.HTTPListeningPort), nil)
+	mux.Handle("/rest/", rest)
+	err := http.ListenAndServeTLS(net.JoinHostPort(c.TLSHTTPListeningIP, c.TLSHTTPListeningPort), c.CertFile, c.KeyFile, mux)
+	if err != nil {
+		log.Fatal("ListenAndServeTLS: ", err)
+	}
+}
+
+//serverHTTP sets up the http handlers and then runs ListenAndServe
+func serverHTTP(rooms *RoomList, chl *os.File, c *config, df clientdata.Factory) {
+	mux := http.NewServeMux()
+	room := newRoomHandler(rooms, chl, df)
+	mux.Handle("/", room)
+	rest := newRestHandler(rooms, chl)
+	mux.Handle("/rest/", rest)
+	err := http.ListenAndServe(net.JoinHostPort(c.HTTPListeningIP, c.HTTPListeningPort), mux)
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)
 	}
@@ -179,12 +234,31 @@ func main() {
 	if err != nil {
 		log.Panic(err)
 	}
-	tserv := NewTelnetServer(rooms, chl, c)
-	go tserv.Start()
-	go serverHTTP(rooms, chl, c)
+	df, err := datafactory.New(c.DatabaseType, c.DatabaseLogin, c.DatabasePassword, c.DatabaseName, c.DatabaseIP, c.DatabasePort)
+	if err != nil {
+		log.Panic(err)
+	}
+	if c.ListeningPort != "" {
+		tserv := NewTelnetServer(rooms, chl, c, df)
+		fmt.Println("Starting Telnet Server on Port ", c.ListeningPort)
+		go tserv.Start()
+		defer tserv.Stop()
+	}
+	if c.TLSListeningPort != "" {
+		tlstserv := NewTelnetServerTLS(rooms, chl, c, df)
+		fmt.Println("Starting TLS Telnet Server on Port ", c.TLSListeningPort)
+		go tlstserv.Start()
+		defer tlstserv.Stop()
+	}
+	if c.TLSHTTPListeningPort != "" {
+		fmt.Println("Starting TLS HTTP Server on Port ", c.TLSHTTPListeningPort)
+		go serverHTTPTLS(rooms, chl, c, df)
+	}
+	if c.HTTPListeningPort != "" {
+		fmt.Println("Starting HTTP Server on Port ", c.HTTPListeningPort)
+		go serverHTTP(rooms, chl, c, df)
+	}
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, os.Interrupt)
 	_ = <-ch
-	tserv.Stop()
-	chl.Close()
 }

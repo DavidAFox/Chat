@@ -1,0 +1,143 @@
+API
+
+Codes - will be found in header under "code" if the action fails and indicates the reason for the failure
+10 A Client with that name already exists
+20 Invalid Name
+21 User name and password don't match
+30 Already blocking that user
+31 Not blocking that user
+32 Can't block self
+40 Not in a Room
+50 Server Error
+60 Unsupported Method
+
+List
+Purpose- List is used to get a list of the current rooms.
+URI- /rooms/list
+Method- GET
+Header "Authorization"- token from the server
+Body- blank
+Response-
+If Header "success" = "true"
+Body-[]list of rooms
+If Header "success" = "false"
+Body- may contain a reason for failure
+
+Quit
+Purpose- Quit is used to log out of the server.
+URI- /rooms/quit or /rooms/RoomName/quit
+Method- POST
+Header "Authorization"- token from the server
+Body- blank
+Response-
+If Header "success" = "true"
+Body- blank
+If Header "success" = "false"
+Body- may contain a reason for failure
+
+Who
+Purpose- Who is used to get a list of users in a room.  The default room is the room the user is currently in.
+URI- /rooms/who or /rooms/RoomName/who
+Method- GET
+Header "Authorization"- token from the server
+Body- blank
+Response-
+If Header "success" = "true"
+Body- []list of users in the room.  It will be the user's room if none is specified.
+If Header "success" = "false"
+Body- may contain a reason for failure
+will return http 401 status not found if the room doesn't exist
+
+Leave
+Purpose- Leave is used to leave the room the user is currently in.
+URI- /rooms/leave or /rooms/RoomName/leave
+Method- POST
+Header "Authorization"- token from the server
+Body- blank
+Response-
+If Header "success" = "true"
+Body- blank
+If Header "success" = "false"
+Body- may contain a reason for failure
+
+Join
+Purpose- Join is used to add the user to a room.  If the room does not exist it will be created.
+URI- /rooms/RoomName/join
+Method- POST
+Header "Authorization"- token from the server
+Body- blank
+Response-
+If Header "success" = "true"
+Body- blank
+If Header "success" = "false"
+Body- may contain a reason for failure
+
+Send Message
+Purpose- Send Message sends the message to the user's current room.
+URI- /messages
+Method- POST
+Header "Authorization"- token from the server
+Body- Message to send
+Response-
+If Header "success" = "true"
+Body- blank
+If Header "success" = "false"
+Body- may contain a reason for failure
+
+Get Messages
+Purpose- Get Messages gets the user's messages since the last time the user did a Get Messages.
+URI- /messages
+Method- GET
+Header "Authorization"- token from the server
+Body- blank
+Response-
+If Header "success" = "true"
+Body- []messages sent to the user since the last time Get Messages was sent.
+If Header "success" = "false"
+Body- may contain a reason for failure
+
+Block
+Purpose- Block is used to block future messages from the specified user.
+URI- /block
+Method- POST
+Header "Authorization"- token from the server
+Body- name of user to block
+Response-
+If Header "success" = "true"
+Body- blank
+If Header "success" = "false"
+Body- may contain a reason for failure
+
+Unblock
+Purpose- Unblock is used to stop blocking a specified user so the user can once again recieve messages from them.
+URI- /unblock
+Method- POST
+Header "Authorization"- token from the server
+Body- name of user to unblock
+Response-
+If Header "success" = "true"
+Body- blank
+If Header "success" = "false"
+Body- may contain a reason for failure
+
+Login
+Purpose- Login is used to login to the server and get a token for use in most of the other actions.
+URI- /login
+Method- POST
+Body- login object consisting of name: user name and password: the user's password
+Response-
+If Header "success" = "true"
+Body- users token
+if Header "success" = "false"
+Body- may contain a reason for the failure
+
+Register
+Purpose- Register is used to create a new user account.
+URI- /register
+Method- POST
+Body- login object consisting of name: user name and password: the user's password
+Response-
+If Header "success" = "true"
+Body- blank
+if Header "success" = "false"
+Body- may contain a reason for the failure

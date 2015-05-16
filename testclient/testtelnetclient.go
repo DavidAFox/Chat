@@ -49,10 +49,17 @@ func (cl *TelnetClient) Login() {
 	if cl.conn == nil {
 		panic("Error with login. No connection.")
 	}
+	_, _ = readString(cl.conn) //use up enter name
 	_, err = io.WriteString(cl.conn, cl.name+"\n")
 	if err != nil {
 		cl.test.Errorf("Telnet Login() Error writing name:  %v", err)
 	}
+	_, _ = readString(cl.conn) //use up enter password
+	_, err = io.WriteString(cl.conn, "a\n")
+	if err != nil {
+		cl.test.Errorf("Telnet Login() Error writing pword: ", err)
+	}
+	_, _ = readString(cl.conn) //use up welcome
 	go cl.GetMessages()
 }
 
@@ -102,8 +109,12 @@ func (cl *TelnetClient) Block(name string) {
 	if name == cl.Name() {
 		cl.res.Add("You can't block yourself.")
 	} else {
-		cl.res.Block(name)
-		cl.res.Add(fmt.Sprintf("Now Blocking %v.", name))
+		if cl.res.IsBlocked(name) {
+			cl.res.Add(fmt.Sprintf("You are already blocking %v.", name))
+		} else {
+			cl.res.Block(name)
+			cl.res.Add(fmt.Sprintf("Now Blocking %v.", name))
+		}
 	}
 }
 

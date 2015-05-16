@@ -109,11 +109,9 @@ func (rm Room) Tell(s string) {
 
 //Send puts the message into each client in the room's recieve function.
 func (rm *Room) Send(m Message) {
-	rm.clients.Lock()
 	for i := rm.clients.Front(); i != nil; i = i.Next() {
 		i.Value.(Client).Recieve(m)
 	}
-	rm.clients.Unlock()
 	rm.messages.Lock()
 	rm.messages.PushBack(m)
 	rm.messages.Unlock()
@@ -121,11 +119,9 @@ func (rm *Room) Send(m Message) {
 
 //Recieve passes messages the room recieves to all clients in the room's client list.
 func (rm *Room) Recieve(m Message) {
-	rm.clients.Lock()
 	for i := rm.clients.Front(); i != nil; i = i.Next() {
 		i.Value.(Client).Recieve(m)
 	}
-	rm.clients.Unlock()
 	rm.messages.Lock()
 	rm.messages.PushBack(m)
 	rm.messages.Unlock()
