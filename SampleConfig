@@ -1,0 +1,17 @@
+{
+"ListeningIP":"",
+"ListeningPort":"8000",
+"HTTPListeningIP":"",
+"HTTPListeningPort":"8080",
+"TLSListeningIP":"",
+"TLSListeningPort":"",
+"TLSHTTPLiseningIP":"",
+"TLSHTTPListeningPort":"",
+"CertFile":"",
+"KeyFile":"",
+"LogFile":"ChatLog",
+"DatabaseLogin":"",
+"DatabasePassword":"",
+"DatabaseName":"DataFile",
+"DatabaseType":""
+}
