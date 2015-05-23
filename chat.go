@@ -47,6 +47,7 @@ type config struct {
 	DatabasePassword     string
 	DatabaseName         string
 	DatabaseType         string
+	Origin               string
 }
 
 //configure loads the config file.
@@ -139,7 +140,7 @@ Outerloop:
 //serverHTTPTLS sets up the http handlers and then runs ListenAndServeTLS.
 func serverHTTPTLS(rooms *RoomList, chl *os.File, c *config, df clientdata.Factory) {
 	mux := http.NewServeMux()
-	room := newRoomHandler(rooms, chl, df)
+	room := newRoomHandler(rooms, chl, df, c.Origin)
 	mux.Handle("/", room)
 	rest := newRestHandler(rooms, chl)
 	mux.Handle("/rest/", rest)
@@ -152,7 +153,7 @@ func serverHTTPTLS(rooms *RoomList, chl *os.File, c *config, df clientdata.Facto
 //serverHTTP sets up the http handlers and then runs ListenAndServe
 func serverHTTP(rooms *RoomList, chl *os.File, c *config, df clientdata.Factory) {
 	mux := http.NewServeMux()
-	room := newRoomHandler(rooms, chl, df)
+	room := newRoomHandler(rooms, chl, df, c.Origin)
 	mux.Handle("/", room)
 	rest := newRestHandler(rooms, chl)
 	mux.Handle("/rest/", rest)

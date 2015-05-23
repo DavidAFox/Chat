@@ -566,15 +566,21 @@ type roomHandler struct {
 	rooms       *RoomList
 	chl         *os.File
 	datafactory clientdata.Factory
+	origin      string
 }
 
 //newRoomHandler initializes and returns a new roomHandler.
-func newRoomHandler(rooms *RoomList, chl *os.File, df clientdata.Factory) *roomHandler {
+func newRoomHandler(rooms *RoomList, chl *os.File, df clientdata.Factory, origin string) *roomHandler {
 	r := new(roomHandler)
 	r.rooms = rooms
 	r.chl = chl
 	r.clients = NewClientMap()
 	r.datafactory = df
+	if origin != "" {
+		r.origin = origin
+	} else {
+		r.origin = "*"
+	}
 	return r
 }
 
@@ -603,6 +609,21 @@ func (h *roomHandler) GetClient(rq *http.Request) *ClientHTTP {
 func (h *roomHandler) ServeHTTP(w http.ResponseWriter, rq *http.Request) {
 	path := strings.Split(rq.URL.Path, "/")
 	cl := h.GetClient(rq)
+	if rq.Method == "OPTIONS" {
+		w.Header().Set("Access-Control-Allow-Origin", h.origin)
+		w.Header().Add("Access-Control-Allow-Methods", "POST")
+		w.Header().Add("Access-Control-Allow-Methods", "GET")
+		w.Header().Add("Access-Control-Allow-Methods", "OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization")
+		w.Header().Add("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Max-Age", "1728000")
+		w.Header().Set("Content-Type", "application/json")
+		return
+	}
+
+	w.Header().Set("Access-Control-Allow-Origin", h.origin)
+	w.Header().Set("Access-Control-Expose-Headers", "success")
+	w.Header().Add("Access-Control-Expose-Headers", "code")
 	switch path[1] {
 	case "rooms":
 		if !h.CheckToken(rq) {
@@ -669,5 +690,7 @@ func (h *roomHandler) ServeHTTP(w http.ResponseWriter, rq *http.Request) {
 		h.Login(w, rq)
 	case "register":
 		h.Register(w, rq)
+	default:
+		w.WriteHeader(http.StatusNotFound)
 	}
 }
