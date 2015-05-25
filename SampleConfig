@@ -13,5 +13,6 @@
 "DatabaseLogin":"",
 "DatabasePassword":"",
 "DatabaseName":"DataFile",
-"DatabaseType":""
+"DatabaseType":"",
+"Origin":""
 }

@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"time"
+	"flag"
 )
 
 //Client interface for working with the Room type.
@@ -131,7 +132,6 @@ Outerloop:
 			}
 			if conn != nil {
 				go TelnetLogin(conn, ts.rooms, ts.chatlog, ts.datafactory.Create(""))
-				//				go handleConnection(conn, ts.rooms, ts.chatlog)
 			}
 		}
 	}
@@ -228,7 +228,9 @@ func (m *restHandler) getMessages(room *Room, w http.ResponseWriter) {
 }
 
 func main() {
-	c := configure("Config")
+	loc := flag.String("config", "Config", "the location of the config file")
+	flag.Parse()
+	c := configure(*loc)
 	rooms := NewRoomList()
 	chl, err := os.OpenFile(c.LogFile, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0666)
 	defer chl.Close()
