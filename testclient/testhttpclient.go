@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"testing"
+	"time"
 )
 
 //HTTPClient is a Client used for testing the server's HTTP side.
@@ -107,7 +108,14 @@ func (cl *HTTPClient) Send(msg string) {
 		}
 		cl.res.Send(fmt.Sprintf("[%v]: %v", cl.Name(), msg))
 	} else {
-		cl.res.Add("You're not in a room.  Type /join roomname to join a room or /help for other commands.")
+		dec := json.NewDecoder(resp.Body)
+		var m string
+		err = dec.Decode(&m)
+		if err != nil {
+			cl.test.Errorf("HTTP Send() Error decoding message in Send: %v", err)
+		}
+		cl.messages = append(cl.messages, m)
+		cl.res.Add("You are not in a room.")
 	}
 }
 
@@ -171,6 +179,11 @@ func (cl *HTTPClient) UnBlock(name string) {
 	}
 }
 
+type whoData struct {
+	Room string
+	Clients []string
+}
+
 //Who retrieves from the server a list of the clients currently in the room and updates its results.
 func (cl *HTTPClient) Who(rmName string) {
 	var req *http.Request
@@ -192,25 +205,29 @@ func (cl *HTTPClient) Who(rmName string) {
 		cl.test.Errorf("HTTP Who() Error sending request: %v", err)
 	}
 	if resp.StatusCode == http.StatusNotFound {
-		cl.messages = append(cl.messages, "Room not Found")
-		cl.res.Add("Room not Found")
+		cl.messages = append(cl.messages, "That room was not found.")
+		cl.res.Add("That room was not found.")
 		resp.Body.Close()
 		return
 	}
-	dec := json.NewDecoder(resp.Body)
-	var room string
-	err = dec.Decode(&room)
-	if err != nil {
-		cl.test.Errorf("HTTP Who() Error decoding room: %v", err)
-	}
-	clientlist := make([]string, 0, 0)
-	err = dec.Decode(&clientlist)
-	if err != nil {
-		cl.test.Errorf("HTTP Who() Error decoding clientlist: %v", err)
-	}
-	cl.messages = append(cl.messages, fmt.Sprintf("Room: %v", room))
-	for _, i := range clientlist {
-		cl.messages = append(cl.messages, i)
+	if resp.Header.Get("success") == "false" {
+		dec := json.NewDecoder(resp.Body)
+		var m string
+		err = dec.Decode(&m)
+		cl.messages = append(cl.messages, m)
+	} else {
+		dec := json.NewDecoder(resp.Body)
+		wd := new(whoData)
+		err = dec.Decode(wd)
+		if err != nil {
+			cl.test.Errorf("HTTP Who() Error decoding room: %v", err)
+		}
+		room := wd.Room
+		clientlist := wd.Clients
+		cl.messages = append(cl.messages, fmt.Sprintf("Room: %v", room))
+		for _, i := range clientlist {
+			cl.messages = append(cl.messages, i)
+		}
 	}
 	resp.Body.Close()
 	cl.res.Who(rmName)
@@ -228,14 +245,20 @@ func (cl *HTTPClient) List() {
 		cl.test.Errorf("HTTP List() Error seding request: %v", err)
 	}
 	dec := json.NewDecoder(resp.Body)
-	list := make([]string, 0, 0)
-	err = dec.Decode(&list)
-	if err != nil {
-		cl.test.Errorf("HTTP List() Error decoding: %v", err)
-	}
-	cl.messages = append(cl.messages, "Rooms:")
-	for _, i := range list {
-		cl.messages = append(cl.messages, i)
+	if resp.Header.Get("success") == "false" {
+		var m string
+		err = dec.Decode(&m)
+		cl.messages = append(cl.messages, m)
+	} else {
+		list := make([]string, 0, 0)
+		err = dec.Decode(&list)
+		if err != nil {
+			cl.test.Errorf("HTTP List() Error decoding: %v", err)
+		}
+		cl.messages = append(cl.messages, "Rooms:")
+		for _, i := range list {
+			cl.messages = append(cl.messages, i)
+		}
 	}
 	resp.Body.Close()
 	cl.res.List()
@@ -243,6 +266,7 @@ func (cl *HTTPClient) List() {
 
 //GetMessages retrieves the clients current messages from the server.
 func (cl *HTTPClient) GetMessages() {
+	start := time.Now()
 	for len(cl.messages) < len(cl.res.Results) {
 		req, err := http.NewRequest("GET", fmt.Sprintf("http://%v/messages", net.JoinHostPort(cl.ip, cl.port)), nil)
 		req.Header.Set("Authorization", cl.token)
@@ -258,14 +282,41 @@ func (cl *HTTPClient) GetMessages() {
 		}
 		resp.Body.Close()
 		cl.messages = append(cl.messages, messages...)
+		if time.Now().Sub(start) > 10*time.Second {
+			cl.CheckResponse()
+		}
 	}
 }
 
 //CheckResponse compares the clients messages recieved to those expected by its Results object and fails the test if they don't match.  It also panics to short circuit long tests when it goes out of sync.
 func (cl *HTTPClient) CheckResponse() {
-	cl.GetMessages()
+//	cl.GetMessages()
 	for i := range cl.messages {
 		cl.messages[i] = RemoveTime(cl.messages[i])
+	}
+	if len(cl.res.Results) != len(cl.messages) {
+		cl.test.Errorf("HTTP CheckResponse() Results and Messages len != Results: %v Messages:%v", len(cl.res.Results), len(cl.messages))
+		if len(cl.messages) < len(cl.res.Results) {
+			for x := range cl.messages {
+				cl.test.Errorf("\nResult:  %v\nMessage: %v\n\n\n", cl.res.Results[x], cl.messages[x])
+			}
+			cl.test.Errorf("\nResult: %v", cl.res.Results[len(cl.res.Results)-1])
+		} else {
+			for x := range cl.res.Results {
+				cl.test.Errorf("\nResult:  %v\nMessage: %v\n\n\n", cl.res.Results[x], cl.messages[x])
+			}
+			cl.test.Errorf("\nMessage: %v", cl.messages[len(cl.messages)-1])
+		}
+		cl.test.Errorf("Name: %v Result#: %v Messages#: %v", cl.Name(), len(cl.res.Results), len(cl.messages))
+		cl.test.Errorf("\nClient: %v Room: %v\nIn Room: ", cl.name, cl.res.Room())
+		for x := range cl.res.room.clients {
+			cl.test.Errorf("\n%v", cl.res.room.clients[x].name)
+		}
+		cl.test.Errorf("Blocklist:")
+		for x := range cl.res.blocklist {
+			cl.test.Errorf("\n%v", cl.res.blocklist[x])
+		}
+		panic("Results # != Messages #")
 	}
 	if len(cl.res.Results) != len(cl.messages) {
 		cl.test.Errorf("Results # != Messages #")
@@ -280,6 +331,7 @@ func (cl *HTTPClient) CheckResponse() {
 			}
 			cl.test.Errorf("\nResult: %v", cl.res.Results[len(cl.res.Results)-1])
 			cl.test.Errorf("\nResult#: %v   Message#: %v\n", len(cl.res.Results), len(cl.messages))
+			panic("Result != Message")
 			break
 		}
 	}

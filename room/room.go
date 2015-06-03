@@ -1,11 +1,20 @@
-package main
+package room
 
 import (
 	"container/list"
 	"fmt"
 	"sort"
 	"sync"
+	"github.com/davidafox/chat/message"
 )
+
+
+//Client interface for working with the Room type.
+type Client interface {
+	Equals(other Client) bool
+	Name() string
+	Recieve(m message.Message)
+}
 
 //clientList is a mutex enhanced linked list of clients.
 type clientList struct {
@@ -61,7 +70,7 @@ func (c *clientList) Who() []string {
 type Room struct {
 	name     string
 	clients  *clientList
-	messages *messageList
+	messages *message.MessageList
 }
 
 //NewRoom creates a room with name.
@@ -69,7 +78,7 @@ func NewRoom(name string) *Room {
 	newRoom := new(Room)
 	newRoom.name = name
 	newRoom.clients = NewClientList()
-	newRoom.messages = newMessageList()
+	newRoom.messages = message.NewMessageList()
 	return newRoom
 }
 
@@ -103,12 +112,12 @@ func (rm *Room) Add(cl Client) {
 
 //Tell sends a string to the room from the server.
 func (rm Room) Tell(s string) {
-	msg := serverMessage{s}
+	msg := message.NewServerMessage(s)
 	rm.Send(msg)
 }
 
 //Send puts the message into each client in the room's recieve function.
-func (rm *Room) Send(m Message) {
+func (rm *Room) Send(m message.Message) {
 	for i := rm.clients.Front(); i != nil; i = i.Next() {
 		i.Value.(Client).Recieve(m)
 	}
@@ -118,7 +127,7 @@ func (rm *Room) Send(m Message) {
 }
 
 //Recieve passes messages the room recieves to all clients in the room's client list.
-func (rm *Room) Recieve(m Message) {
+func (rm *Room) Recieve(m message.Message) {
 	for i := rm.clients.Front(); i != nil; i = i.Next() {
 		i.Value.(Client).Recieve(m)
 	}

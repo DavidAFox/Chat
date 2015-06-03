@@ -93,7 +93,7 @@ func (r *Result) Who(name string) {
 	var rm *room
 	if name == "" {
 		if r.room == nil {
-			r.Add("You're not in a room.  Type /join roomname to join a room or /help for other commands.")
+			r.Add("You are not in a room.")
 			return
 		}
 		rm = r.room
@@ -101,7 +101,7 @@ func (r *Result) Who(name string) {
 		rm = r.GetRoom(name)
 	}
 	if rm == nil {
-		r.Add("Room not Found")
+		r.Add("That room was not found.")
 		return
 	}
 	r.Add(fmt.Sprintf("Room: %v", name))

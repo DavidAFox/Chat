@@ -1,4 +1,4 @@
-package main
+package message
 
 import (
 	"container/list"
@@ -7,43 +7,53 @@ import (
 	"time"
 )
 
+//Message is an interface for dealing with various types of messages.
+type Message interface {
+	String() string
+}
+
 //messageList is a mutex enhanced linked list of messages.
-type messageList struct {
+type MessageList struct {
 	*list.List
 	*sync.Mutex
 }
 
 //newMessageList creates a new message list.
-func newMessageList() *messageList {
-	return &messageList{list.New(), new(sync.Mutex)}
+func NewMessageList() *MessageList {
+	return &MessageList{list.New(), new(sync.Mutex)}
 }
 
 //serverMessage is a message containing only a string sent from the server.
-type serverMessage struct {
+type ServerMessage struct {
 	text string
 }
 
+//NewServerMessage returns a new ServerMessage.
+func NewServerMessage(text string) *ServerMessage {
+	return &ServerMessage{text: text}
+}
+
 //String returns the string representation of the serverMessage.
-func (m serverMessage) String() string {
+func (m ServerMessage) String() string {
 	return m.text
 }
 
 //clientMessage includes the text of the message, the time it was sent and the client who sent it.
-type clientMessage struct {
+type ClientMessage struct {
 	text   string
 	time   time.Time
-	Sender Client
+	Sender string
 }
 
 //String formats the clientMessage as time [Sender]: text.
-func (m clientMessage) String() string {
+func (m ClientMessage) String() string {
 	const layout = "3:04pm"
-	return fmt.Sprintf("%s [%v]: %v", m.time.Format(layout), m.Sender.Name(), m.text)
+	return fmt.Sprintf("%s [%v]: %v", m.time.Format(layout), m.Sender, m.text)
 }
 
 //newMessage creates a new client message
-func newClientMessage(t string, s Client) *clientMessage {
-	msg := new(clientMessage)
+func NewClientMessage(t string, s string) *ClientMessage {
+	msg := new(ClientMessage)
 	msg.text = t
 	msg.time = time.Now()
 	msg.Sender = s
@@ -51,14 +61,14 @@ func newClientMessage(t string, s Client) *clientMessage {
 }
 
 //restMessage is a message sent from the REST API.
-type restMessage struct {
+type RestMessage struct {
 	Name string
 	Text string
 	Time time.Time
 }
 
 //String returns a rest message string formated as Time [Name]: Text.
-func (m *restMessage) String() string {
+func (m *RestMessage) String() string {
 	const layout = "3:04pm"
 	return fmt.Sprintf("%s [%v]: %v", m.Time.Format(layout), m.Name, m.Text)
 }

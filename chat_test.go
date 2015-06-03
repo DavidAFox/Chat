@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"github.com/davidafox/chat/chattest"
 	"github.com/davidafox/chat/clientdata"
+	httpcon "github.com/davidafox/chat/http"
+	"github.com/davidafox/chat/room"
 	"github.com/davidafox/chat/testclient/testclientdata"
 	"net"
 	"net/http"
@@ -67,9 +69,9 @@ func TestConfigure(t *testing.T) {
 }
 
 //NewTestHTTPServer sets up an http test server with the roomhandler and resthandler.
-func NewTestHTTPServer(rooms *RoomList, chl *os.File, conf *config, df clientdata.Factory) *httptest.Server {
+func NewTestHTTPServer(rooms *room.RoomList, chl *os.File, conf *config, df clientdata.Factory) *httptest.Server {
 	m := http.NewServeMux()
-	room := newRoomHandler(rooms, chl, df)
+	room := httpcon.NewRoomHandler(rooms, chl, df, "")
 	m.Handle("/", room)
 	rest := newRestHandler(rooms, chl)
 	m.Handle("/rest/", rest)
@@ -86,7 +88,7 @@ func getIPPort(h string) (string, string, error) {
 
 //TestHttpAndTelnet runs a test with http, telnet and rest clients.
 func TestHTTPAndTelnet(t *testing.T) {
-	rooms := NewRoomList()
+	rooms := room.NewRoomList()
 	conf := &TestConf
 	chl, err := os.OpenFile(conf.LogFile, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0666)
 	defer chl.Close()
@@ -115,7 +117,7 @@ func TestHTTPAndTelnet(t *testing.T) {
 
 //TestHTTP runs a test with only http clients.
 func TestHTTP(t *testing.T) {
-	rooms := NewRoomList()
+	rooms := room.NewRoomList()
 	conf := &TestConf
 	chl, err := os.OpenFile(conf.LogFile, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0666)
 	defer chl.Close()
@@ -141,7 +143,7 @@ func TestHTTP(t *testing.T) {
 
 //TestTelnet runs a test with only telnet clients.
 func TestTelnet(t *testing.T) {
-	rooms := NewRoomList()
+	rooms := room.NewRoomList()
 	conf := &TestConf
 	chl, err := os.OpenFile(conf.LogFile, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0666)
 	defer chl.Close()

@@ -94,7 +94,7 @@ func (cl *TelnetClient) Send(m string) {
 		cl.test.Errorf("Telnet Send() Error writing send: %v", err)
 	}
 	if cl.room == "" {
-		cl.res.Add("You're not in a room.  Type /join roomname to join a room or /help for other commands.")
+		cl.res.Add("You are not in a room.")
 	} else {
 		cl.res.Send(fmt.Sprintf("[%v]: %v", cl.Name(), m))
 	}
@@ -113,7 +113,7 @@ func (cl *TelnetClient) Block(name string) {
 			cl.res.Add(fmt.Sprintf("You are already blocking %v.", name))
 		} else {
 			cl.res.Block(name)
-			cl.res.Add(fmt.Sprintf("Now Blocking %v.", name))
+			cl.res.Add(fmt.Sprintf("Now blocking %v.", name))
 		}
 	}
 }

@@ -4,9 +4,14 @@ package main
 import (
 	"crypto/tls"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"github.com/davidafox/chat/clientdata"
 	"github.com/davidafox/chat/clientdata/datafactory"
+	chathttp "github.com/davidafox/chat/http"
+	"github.com/davidafox/chat/message"
+	"github.com/davidafox/chat/room"
+	"github.com/davidafox/chat/telnet"
 	"io"
 	"log"
 	"net"
@@ -14,20 +19,7 @@ import (
 	"os"
 	"os/signal"
 	"time"
-	"flag"
 )
-
-//Client interface for working with the Room type.
-type Client interface {
-	Equals(other Client) bool
-	Name() string
-	Recieve(m Message)
-}
-
-//Message is an interface for dealing with various types of messages.
-type Message interface {
-	String() string
-}
 
 //config stores the configuration data from the config file.
 type config struct {
@@ -67,7 +59,7 @@ func configure(filename string) (c *config) {
 }
 
 type telnetServer struct {
-	rooms       *RoomList
+	rooms       *room.RoomList
 	chatlog     *os.File
 	cls         chan bool
 	ln          net.Listener
@@ -76,7 +68,7 @@ type telnetServer struct {
 }
 
 //NewTelnetServerTLS creates a telnet server using TLS.
-func NewTelnetServerTLS(rooms *RoomList, chl *os.File, c *config, datafactory clientdata.Factory) *telnetServer {
+func NewTelnetServerTLS(rooms *room.RoomList, chl *os.File, c *config, datafactory clientdata.Factory) *telnetServer {
 	ts := new(telnetServer)
 	var err error
 	cert, err := tls.LoadX509KeyPair(c.CertFile, c.KeyFile)
@@ -97,7 +89,7 @@ func NewTelnetServerTLS(rooms *RoomList, chl *os.File, c *config, datafactory cl
 	return ts
 }
 
-func NewTelnetServer(rooms *RoomList, chl *os.File, c *config, datafactory clientdata.Factory) *telnetServer {
+func NewTelnetServer(rooms *room.RoomList, chl *os.File, c *config, datafactory clientdata.Factory) *telnetServer {
 	ts := new(telnetServer)
 	var err error
 	ts.ln, err = net.Listen("tcp", net.JoinHostPort(c.ListeningIP, c.ListeningPort))
@@ -131,16 +123,16 @@ Outerloop:
 				log.Println(err)
 			}
 			if conn != nil {
-				go TelnetLogin(conn, ts.rooms, ts.chatlog, ts.datafactory.Create(""))
+				go telnet.TelnetLogin(conn, ts.rooms, ts.chatlog, ts.datafactory.Create(""))
 			}
 		}
 	}
 }
 
 //serverHTTPTLS sets up the http handlers and then runs ListenAndServeTLS.
-func serverHTTPTLS(rooms *RoomList, chl *os.File, c *config, df clientdata.Factory) {
+func serverHTTPTLS(rooms *room.RoomList, chl *os.File, c *config, df clientdata.Factory) {
 	mux := http.NewServeMux()
-	room := newRoomHandler(rooms, chl, df, c.Origin)
+	room := chathttp.NewRoomHandler(rooms, chl, df, c.Origin)
 	mux.Handle("/", room)
 	rest := newRestHandler(rooms, chl)
 	mux.Handle("/rest/", rest)
@@ -151,9 +143,9 @@ func serverHTTPTLS(rooms *RoomList, chl *os.File, c *config, df clientdata.Facto
 }
 
 //serverHTTP sets up the http handlers and then runs ListenAndServe
-func serverHTTP(rooms *RoomList, chl *os.File, c *config, df clientdata.Factory) {
+func serverHTTP(rooms *room.RoomList, chl *os.File, c *config, df clientdata.Factory) {
 	mux := http.NewServeMux()
-	room := newRoomHandler(rooms, chl, df, c.Origin)
+	room := chathttp.NewRoomHandler(rooms, chl, df, c.Origin)
 	mux.Handle("/", room)
 	rest := newRestHandler(rooms, chl)
 	mux.Handle("/rest/", rest)
@@ -166,12 +158,12 @@ func serverHTTP(rooms *RoomList, chl *os.File, c *config, df clientdata.Factory)
 
 //restHandler is the http.Handler for handling the REST API
 type restHandler struct {
-	rooms *RoomList
+	rooms *room.RoomList
 	chl   *os.File
 }
 
 //newRestHandler initializes a new restHandler.
-func newRestHandler(rooms *RoomList, chl *os.File) *restHandler {
+func newRestHandler(rooms *room.RoomList, chl *os.File) *restHandler {
 	m := new(restHandler)
 	m.rooms = rooms
 	m.chl = chl
@@ -196,9 +188,9 @@ func (m *restHandler) ServeHTTP(w http.ResponseWriter, rq *http.Request) {
 }
 
 //sendMessages handles REST requests for messages and writes them to the response.
-func (m *restHandler) sendMessages(room *Room, w http.ResponseWriter, rq *http.Request) {
+func (m *restHandler) sendMessages(room *room.Room, w http.ResponseWriter, rq *http.Request) {
 	dec := json.NewDecoder(rq.Body)
-	message := new(restMessage)
+	message := new(message.RestMessage)
 	err := dec.Decode(message)
 	if err != nil {
 		log.Println("Error decoding messages in sendMessages", err)
@@ -218,7 +210,7 @@ func (m *restHandler) log(s string) {
 }
 
 //GetMessage handles REST request for messages and writes them to the response.
-func (m *restHandler) getMessages(room *Room, w http.ResponseWriter) {
+func (m *restHandler) getMessages(room *room.Room, w http.ResponseWriter) {
 	enc := json.NewEncoder(w)
 	messages := room.GetMessages()
 	err := enc.Encode(messages)
@@ -231,7 +223,7 @@ func main() {
 	loc := flag.String("config", "Config", "the location of the config file")
 	flag.Parse()
 	c := configure(*loc)
-	rooms := NewRoomList()
+	rooms := room.NewRoomList()
 	chl, err := os.OpenFile(c.LogFile, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0666)
 	defer chl.Close()
 	if err != nil {
