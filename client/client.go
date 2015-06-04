@@ -119,6 +119,8 @@ func (cl *Client) Execute(command []string) *Response {
 		return cl.Who(command[1])
 	case "send":
 		return cl.Send(command[1])
+	case "blocklist":
+		return cl.BlockList()
 	default:
 		return NewResponse(false, 70, "Invalid Command", nil)
 	}
@@ -131,6 +133,20 @@ func (cl *Client) IsBlocked(other string) bool {
 		log.Println("Error IsBlocked: ", err)
 	}
 	return blocked
+}
+
+//BlockList provides a list of the names the client is currently blocking.
+func (cl *Client) BlockList () *Response {
+	clist, err := cl.data.BlockList()
+	if err != nil {
+		log.Println("BlockList: ", err)
+		return NewResponse(false, 50, "", nil)
+	}
+	sresp := "Block List:"
+	for _, i := range clist {
+		sresp = sresp + "\r\n" + i
+	}
+	return NewResponse(true, 0, sresp, clist)
 }
 
 //Unblock removes name from this clients block list.
@@ -146,7 +162,7 @@ func (cl *Client) Unblock(name string) *Response {
 	case err == clientdata.ErrNotBlocking:
 		return NewResponse(false, 31, fmt.Sprintf("You are not blocking %v.", name), nil)
 	case err != nil:
-		log.Println("Telnet Unblock: ", err)
+		log.Println("Unblock: ", err)
 		return NewResponse(false, 50, "", nil)
 	default:
 		return NewResponse(true, 0, fmt.Sprintf("No longer blocking %v.", name), nil)

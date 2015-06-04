@@ -128,6 +128,18 @@ Body- blank
 If Header "success" = "false"
 Body- may contain a reason for failure
 
+Blocklist
+Purpose- Blocklist is used to get a list of the names the client is currently blocking.
+URI - /blocklist
+Method- GET
+Header "Authorization"- token from the server
+Body- blank
+Response-
+If Header "success" = "true"
+Body- [] list of names that are being blocked
+If Header "success" = "false"
+Body- may contain a reason for failure
+
 Login
 Purpose- Login is used to login to the server and get a token for use in most of the other actions.
 URI- /login

@@ -7,6 +7,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"log"
 	"regexp"
+	"sort"
 )
 
 type Factory interface {
@@ -19,6 +20,7 @@ type ClientData interface {
 	ClientExists(name string) (bool, error)
 	NewClient(pword string) error
 	IsBlocked(name string) (bool, error)
+	BlockList() ([]string, error)
 	Block(name string) error
 	Unblock(name string) error
 	SetName(name string)
@@ -125,6 +127,20 @@ func (cdd *DataAccess) NewClient(pword string) error {
 	hashpword := Encrypt(pword)
 	err = cdd.data.Add("client", row("password", hashpword, "name", cdd.name))
 	return err
+}
+
+//BlockList returns a list of names that the client is blocking.
+func (cdd *DataAccess) BlockList() ([]string, error) {
+	rows, err := cdd.data.Get("blocked", row("name", cdd.name), "blocked")
+	if err != nil {
+		return nil, err
+	}
+	list := make([]string, 0, 0)
+	for _, i := range rows {
+		list = append(list, i["blocked"])
+	}
+	sort.Strings(list)
+	return list, nil
 }
 
 //IsBlocked returns true if the client is blocking name.
