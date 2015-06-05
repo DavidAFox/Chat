@@ -23,6 +23,9 @@ type ClientData interface {
 	BlockList() ([]string, error)
 	Block(name string) error
 	Unblock(name string) error
+	IsFriend(name string) (bool, error)
+	Friend(name string) error
+	Unfriend(name string) error
 	SetName(name string)
 }
 
@@ -40,6 +43,8 @@ var ErrNotBlocking = errors.New("clientdata: You are not blocking them.")
 var ErrClientNotFound = errors.New("clientdata: Client not found.")
 var ErrInvalidName = errors.New("clientdata: Invalid Name.")
 var ErrBlocking = errors.New("clientdata: You are already blocking them.")
+var ErrFriend = errors.New("clientdata: They are already on your friends list.")
+var ErrNotFriend = errors.New("clientdata: They are not on your friends list.")
 
 //encrypt encrypts the password and returns the encrypted version.
 func Encrypt(pword string) string {
@@ -176,6 +181,41 @@ func (cdd *DataAccess) Unblock(name string) error {
 		return ErrNotBlocking
 	}
 	return cdd.data.Delete("blocked", row("blocked", name, "name", cdd.name))
+}
+
+//IsFriend returns true if name is in the friendlist
+func (cdd *DataAccess) IsFriend(name string) (bool, error) {
+	return cdd.data.Exists("friends", row("friend", name, "name", cdd.name))
+}
+
+//Friend adds name to the friend list.
+func (cdd *DataAccess) Friend(name string) error {
+	if !ValidateName(name) {
+		return ErrInvalidName
+	}
+	friend, err := cdd.IsFriend(name)
+	if err != nil {
+		return err
+	}
+	if friend {
+		return ErrFriend
+	}
+	return cdd.data.Add("friends", row("friend", name, "name", cdd.name))
+}
+
+//Unfriend removes name from the friend list.
+func (cdd *DataAccess) Unfriend(name string) error {
+	if !ValidateName(name) {
+		return ErrInvalidName
+	}
+	friend, err := cdd.IsFriend(name)
+	if err != nil {
+		return err
+	}
+	if !friend {
+		return ErrNotFriend
+	}
+	return cdd.data.Delete("friends", row("friend", name, "name", cdd.name))
 }
 
 //SetName changes the name associated with this DataAccess object.  Name must be alphanumeric only.

@@ -19,6 +19,9 @@ Codes - will be found in header under "code" if the action fails and indicates t
 30 Already blocking that user
 31 Not blocking that user
 32 Can't block self
+35 Already friend that user
+36 Not friending that user
+37 Can't friend self
 40 Not in a Room
 41 Room does not exist
 50 Server Error
@@ -121,6 +124,10 @@ func (cl *Client) Execute(command []string) *Response {
 		return cl.Send(command[1])
 	case "blocklist":
 		return cl.BlockList()
+	case "friend":
+		return cl.Friend(command[1])
+	case "unfriend":
+		return cl.Unfriend(command[1])		
 	default:
 		return NewResponse(false, 70, "Invalid Command", nil)
 	}
@@ -191,6 +198,49 @@ func (cl *Client) Block(name string) *Response {
 		return NewResponse(true, 0, fmt.Sprintf("Now blocking %v.", name), nil)
 	}
 }
+
+//Friend adds name to this clients friend list.
+func (cl *Client) Friend(name string) *Response {
+	if name == "" {
+		return NewResponse(false, 22, "You must enter a user to friend.", nil)
+	}
+	if !clientdata.ValidateName(name) {
+		return NewResponse(false, 20, "Invalid name.  Name must be alphanumeric characters only.", nil)
+	}
+	if cl.Name() == name {
+		return NewResponse(false, 37, "You can't friend yourself.", nil)
+	}
+	err := cl.data.Friend(name)
+	switch {
+	case err == clientdata.ErrFriend:
+		return NewResponse(false, 35, fmt.Sprintf("%v is already on your friends list.", name), nil)
+	case err != nil:
+		log.Println("Error Friend: ", err)
+		return NewResponse(false, 50, "", nil)
+	default:
+		return NewResponse(true, 0, fmt.Sprintf("%v is now on your friends list.", name), nil)
+	}
+}
+
+//Unfriend removes name from this clients friend list.
+func (cl *Client) Unfriend(name string) *Response {
+	if name == "" {
+		return NewResponse(false, 22, "You must enter a user to unfriend.", nil)
+	}
+	if !clientdata.ValidateName(name) {
+		return NewResponse(false, 20, "Invalid name.  Name must be alphanumeric characters only.", nil)
+	}
+	err := cl.data.Unfriend(name)
+	switch {
+	case err == clientdata.ErrNotFriend:
+		return NewResponse(false, 36, fmt.Sprintf("%v is not on your friends list.", name), nil)
+	case err != nil:
+		return NewResponse(false, 50, "", nil)
+	default:
+		return NewResponse(true, 0, fmt.Sprintf("%v is no longer on your friends list.", name), nil)		
+	}
+}
+
 
 //LeaveRoom removes the client from its room.
 func (cl *Client) LeaveRoom() {

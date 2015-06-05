@@ -140,6 +140,30 @@ Body- [] list of names that are being blocked
 If Header "success" = "false"
 Body- may contain a reason for failure
 
+Friend
+Purpose- Friend is used to add a user to the user's friend list.
+URI - /friend
+Method- POST
+Header "Authorization"- token from the server
+Body- name of user to friend
+Response-
+If Header "success" = "true"
+Body- blank
+If Header "success" = "false"
+Body- may contain a reason for failure
+
+Unfriend
+Purpose- Unfriend is used to remove a user from the user's friend list.
+URI - /unfriend
+Method- POST
+Header "Authorization"- token from the server
+Body- name of user to unfriend
+Response-
+If Header "success" = "true"
+Body- blank
+If Header "success" = "false"
+Body- may contain a reason for failure
+
 Login
 Purpose- Login is used to login to the server and get a token for use in most of the other actions.
 URI- /login
