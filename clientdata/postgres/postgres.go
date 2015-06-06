@@ -155,12 +155,12 @@ func (p *Postgres) Set(table string, values, cond map[string]string) error {
 		if x != 1+len(values) {
 			qstring += " AND "
 		}
-		qstring += i + " = $" + strconv.Itoa(x+1)
+		qstring += i + " = $" + strconv.Itoa(x)
 		args2 = append(args2, cond[i])
 		x++
 	}
 	args = append(args, args2...)
-	_, err := p.data.Exec(qstring, args)
+	_, err := p.data.Exec(qstring, args...)
 	return err
 }
 

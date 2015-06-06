@@ -8,6 +8,8 @@ import (
 	"io"
 	"log"
 	"os"
+	"strconv"
+	"time"
 )
 
 /*
@@ -71,6 +73,10 @@ func New(name string, roomlist *room.RoomList, chatlog *os.File, data clientdata
 	cl.chatlog = chatlog
 	cl.data = data
 	cl.connection = connection
+	err := cl.data.UpdateOnline(time.Now())
+	if err != nil {
+		log.Println(err)
+	}
 	return cl
 }
 
@@ -127,7 +133,9 @@ func (cl *Client) Execute(command []string) *Response {
 	case "friend":
 		return cl.Friend(command[1])
 	case "unfriend":
-		return cl.Unfriend(command[1])		
+		return cl.Unfriend(command[1])
+	case "friendlist":
+		return cl.FriendList()			
 	default:
 		return NewResponse(false, 70, "Invalid Command", nil)
 	}
@@ -241,6 +249,35 @@ func (cl *Client) Unfriend(name string) *Response {
 	}
 }
 
+//Friend represents a person on your friends list.  room will instead be the last online string if they are not online now.
+type Friend struct {
+	name string
+	room string
+}
+
+//FriendList gives a list of people on the clients friendlist and the room they are in or when they were last logged in.
+func (cl *Client) FriendList() *Response {
+	list, err := cl.data.FriendList()
+	if err != nil {
+		return NewResponse(false, 50, "", nil)
+	}
+	flist := make([]Friend, len(list), len(list))
+	for i := range list {
+		flist[i] = Friend{name: list[i], room: cl.rooms.FindClientRoom(list[i])}
+		if flist[i].room == "" {
+			lo, err := cl.data.LastOnline(flist[i].name)
+			if err != nil {
+				log.Println(err)
+			}
+			flist[i].room = durationString(time.Since(lo))
+		}
+	}
+	sresp := "Friend \t\t Room/Last Online"
+	for i := range flist {
+		sresp = sresp + "\n\r" + flist[i].name + "\t\t" + flist[i].room
+	}
+	return NewResponse(true, 0, sresp, flist)
+}
 
 //LeaveRoom removes the client from its room.
 func (cl *Client) LeaveRoom() {
@@ -277,6 +314,23 @@ func (cl *Client) Send(m string) *Response {
 		return NewResponse(true, 0, "", nil)
 	} else {
 		return NewResponse(false, 40, "You are not in a room.", nil)
+	}
+}
+
+func durationString(d time.Duration) string {
+	switch {
+	case d > (time.Hour*24*365):
+		return strconv.Itoa(int(d/(time.Hour*24*365))) + " Years ago"
+	case d > (time.Hour*24*7):
+		return strconv.Itoa(int(d/(time.Hour*24*7))) + " Weeks ago"
+	case d > (time.Hour*24):
+		return strconv.Itoa(int(d/(time.Hour*24))) + " Days ago"
+	case d > time.Hour:
+		return strconv.Itoa(int(d/time.Hour)) + " Hours ago"
+	case d > time.Minute:
+		return strconv.Itoa(int(d/time.Minute)) + " Minutes ago"
+	default:
+		return strconv.Itoa(int(d/time.Second)) + " Seconds ago"						
 	}
 }
 

@@ -164,6 +164,18 @@ Body- blank
 If Header "success" = "false"
 Body- may contain a reason for failure
 
+FriendList
+Purpose- FriendList is used to get a list of friends.
+URI - /friendlist
+Method- GET
+Header "Authorization"- token from the server
+Body- blank
+Response-
+If Header "success" = "true"
+Body- [] of Friends name: friends name, room: name of friends current room or string of when they last logged in if they're not online
+If Header "success" = "false"
+Body- may contain a reason for failure
+
 Login
 Purpose- Login is used to login to the server and get a token for use in most of the other actions.
 URI- /login

@@ -8,6 +8,7 @@ import (
 	"log"
 	"regexp"
 	"sort"
+	"time"
 )
 
 type Factory interface {
@@ -18,6 +19,8 @@ type Factory interface {
 type ClientData interface {
 	Authenticate(pword string) (bool, error)
 	ClientExists(name string) (bool, error)
+	LastOnline(name string) (time.Time, error)
+	UpdateOnline(t time.Time) error
 	NewClient(pword string) error
 	IsBlocked(name string) (bool, error)
 	BlockList() ([]string, error)
@@ -26,6 +29,7 @@ type ClientData interface {
 	IsFriend(name string) (bool, error)
 	Friend(name string) error
 	Unfriend(name string) error
+	FriendList() ([]string, error)
 	SetName(name string)
 }
 
@@ -117,6 +121,21 @@ func (cdd *DataAccess) ClientExists(name string) (bool, error) {
 	}
 }
 
+//UpdateOnline sets the clients lastonline to time.
+func (cdd *DataAccess) UpdateOnline(t time.Time) error {
+	return cdd.data.Set("client", row("lastonline", t.String()), row("name", cdd.name))
+}
+
+//LastOnline returns the clients lastonline entry.
+func (cdd *DataAccess) LastOnline(name string) (time.Time, error) {
+	res, err := cdd.data.Get("client", row("name", name), "lastonline")
+	if err != nil {
+		return time.Now(), err
+	}
+	t, err := time.Parse("2006-01-02 15:04:05.999999999 -0700 MST", res[0]["lastonline"])
+	return t, err
+}
+
 //NewClient adds the client to the database with the provided password.
 func (cdd *DataAccess) NewClient(pword string) error {
 	exists, err := cdd.ClientExists(cdd.name)
@@ -130,7 +149,7 @@ func (cdd *DataAccess) NewClient(pword string) error {
 		return ErrInvalidName
 	}
 	hashpword := Encrypt(pword)
-	err = cdd.data.Add("client", row("password", hashpword, "name", cdd.name))
+	err = cdd.data.Add("client", row("password", hashpword, "name", cdd.name, "lastonline", time.Now().String()))
 	return err
 }
 
@@ -201,6 +220,20 @@ func (cdd *DataAccess) Friend(name string) error {
 		return ErrFriend
 	}
 	return cdd.data.Add("friends", row("friend", name, "name", cdd.name))
+}
+
+//FriendList returns a [] of the names on the clients friend list.
+func (cdd *DataAccess) FriendList() ([]string, error) {
+	rows, err := cdd.data.Get("friends", row("name", cdd.name), "friend")
+	if err != nil {
+		return nil, err
+	}
+	list := make([]string, 0, 0)
+	for i := range rows {
+		list = append(list, rows[i]["friend"])
+	}
+	sort.Strings(list)
+	return list, nil
 }
 
 //Unfriend removes name from the friend list.

@@ -66,6 +66,17 @@ func (c *clientList) Who() []string {
 	return clist
 }
 
+//Present returns true if a client with matching name is in the clientlist.
+func (c *clientList) Present(name string) bool {
+	found := false
+	for i := c.Front(); i != nil; i = i.Next() {
+		if i.Value.(Client).Name() == name {
+			found = true
+		}
+	}
+	return found
+}
+
 //Room is a room name and a linked list of clients in the room.
 type Room struct {
 	name     string
@@ -98,6 +109,10 @@ func (rm *Room) Name() string {
 //Who returns a slice of the names of all the clients in the rooms client list.
 func (rm *Room) Who() []string {
 	return rm.clients.Who()
+}
+
+func (rm *Room) Present(name string) bool {
+	return rm.clients.Present(name)
 }
 
 //Remove removes a client from the room.
