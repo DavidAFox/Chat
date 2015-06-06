@@ -77,6 +77,17 @@ func (c *clientList) Present(name string) bool {
 	return found
 }
 
+//GetClient returns the first client with matchint name.
+func (c *clientList) GetClient(name string) Client {
+	for i := c.Front(); i != nil; i = i.Next() {
+		if i.Value.(Client).Name() == name {
+			return i.Value.(Client)
+		}
+	}
+	return nil
+}
+
+
 //Room is a room name and a linked list of clients in the room.
 type Room struct {
 	name     string
@@ -157,6 +168,11 @@ func (rm *Room) IsEmpty() bool {
 		return true
 	}
 	return false
+}
+
+//GetClient returns the first client with name from the room.
+func (rm *Room) GetClient(name string) Client {
+	return rm.clients.GetClient(name)
 }
 
 //GetMessages gets the messages from the room message list and returns them as a []string.

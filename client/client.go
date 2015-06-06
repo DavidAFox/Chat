@@ -26,6 +26,7 @@ Codes - will be found in header under "code" if the action fails and indicates t
 37 Can't friend self
 40 Not in a Room
 41 Room does not exist
+42 Client not found
 50 Server Error
 60 Unsupported Method
 70 Invalid Command
@@ -135,7 +136,12 @@ func (cl *Client) Execute(command []string) *Response {
 	case "unfriend":
 		return cl.Unfriend(command[1])
 	case "friendlist":
-		return cl.FriendList()			
+		return cl.FriendList()
+	case "tell":
+		if len(command) < 3 {
+			command = append(command, "")
+		}
+		return cl.Tell(command[1], command[2])				
 	default:
 		return NewResponse(false, 70, "Invalid Command", nil)
 	}
@@ -277,6 +283,19 @@ func (cl *Client) FriendList() *Response {
 		sresp = sresp + "\n\r" + flist[i].name + "\t\t" + flist[i].room
 	}
 	return NewResponse(true, 0, sresp, flist)
+}
+
+func (cl *Client) Tell(name, m string) *Response {
+	message := message.NewClientMessage(m, cl.Name())
+	if name == "" {
+		return NewResponse(false, 42, "You must enter a name and a message.", nil)
+	}
+	other := cl.rooms.GetClient(name)
+	if other != nil {
+		other.Recieve(message)
+		return NewResponse(true, 0, "", nil)	
+	}
+	return NewResponse(false, 42, "Could not find a client with that name.", nil)
 }
 
 //LeaveRoom removes the client from its room.

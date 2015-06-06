@@ -32,6 +32,17 @@ func (rml *RoomList) FindClientRoom(name string) string {
 	return ""
 }
 
+//GetClient returns the first client that matches name.
+func (rml *RoomList) GetClient(name string) Client {
+	for i := rml.Front(); i != nil; i = i.Next() {
+		cl := i.Value.(*Room).GetClient(name)
+		if cl != nil {
+			return cl
+		}
+	}
+	return nil
+}
+
 //CloseEmpty closes all empty rooms.
 func (rml *RoomList) CloseEmpty() {
 	rml.Lock()
