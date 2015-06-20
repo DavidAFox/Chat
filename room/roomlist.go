@@ -9,7 +9,9 @@ type RoomList struct {
 
 //NewRoomList returns an empty RoomList.
 func NewRoomList() *RoomList {
-	return &RoomList{NewClientList()}
+	rl := &RoomList{NewClientList()}
+	rl.Add(NewRoom("Lobby"))//create default room
+	return rl
 }
 
 //FindRoom returns the first room with name.

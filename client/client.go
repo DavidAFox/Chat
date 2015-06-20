@@ -290,13 +290,14 @@ func (cl *Client) LeaveRoom() {
 	}
 }
 
-//Leave is the client action to leave a room.
+//Leave is the client action to leave a room.  Moves the client back to the Lobby room.
 func (cl *Client) Leave() *Response {
-	if cl.room == nil {
+/*	if cl.room == nil {
 		return NewResponse(false, 40, "You are not in a room.", nil)
 	}
 	cl.LeaveRoom()
-	return NewResponse(true, 0, "", nil)
+	*/
+	return cl.Join("Lobby")
 }
 
 func (cl *Client) Quit() *Response {
