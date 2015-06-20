@@ -40,6 +40,7 @@ func New(m *ClientMap, name string, roomlist *room.RoomList, chatlog *os.File, d
 	d := 5 * time.Minute
 	c.timeOut = time.AfterFunc(d, c.Close)
 	c.cMap = m
+	_ = c.client.Join("Lobby")
 	return c
 }
 

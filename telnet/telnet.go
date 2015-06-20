@@ -28,6 +28,7 @@ func New(name string, roomlist *room.RoomList, chatlog *os.File, data clientdata
 	c := new(Connection)
 	c.client = client.New(name, roomlist, chatlog, data, c)
 	c.conn = conn
+	_ = c.client.Join("Lobby")
 	return c
 }
 
