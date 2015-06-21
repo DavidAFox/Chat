@@ -27,6 +27,7 @@ Codes - will be found in header under "code" if the action fails and indicates t
 40 Not in a Room
 41 Room does not exist
 42 Client not found
+43 Client is blocking you
 50 Server Error
 60 Unsupported Method
 70 Invalid Command
@@ -83,8 +84,8 @@ func New(name string, roomlist *room.RoomList, chatlog *os.File, data clientdata
 
 //Recieve will pass messages along to the client.
 func (cl *Client) Recieve(m message.Message) {
-	if msg, ok := m.(*message.ClientMessage); ok {
-		if cl.IsBlocked(msg.Sender) {
+	if msg, ok := m.(message.ClientMessage); ok {
+		if cl.IsBlocked(msg.Name()) {
 			return
 		}
 	}
@@ -286,13 +287,20 @@ func (cl *Client) FriendList() *Response {
 }
 
 func (cl *Client) Tell(name, m string) *Response {
-	message := message.NewClientMessage(m, cl.Name())
 	if name == "" {
 		return NewResponse(false, 42, "You must enter a name and a message.", nil)
 	}
 	other := cl.rooms.GetClient(name)
 	if other != nil {
-		other.Recieve(message)
+		if othc, ok := other.(*Client); ok {
+			if othc.IsBlocked(cl.Name()) {
+				return NewResponse(false, 43, fmt.Sprintf("%v is blocking you.", other.Name()), nil)
+			}
+		}
+		mess := message.NewTellMessage(m, cl.Name(), other.Name(), true)
+		other.Recieve(mess)
+		sentMessage := message.NewTellMessage(m, cl.Name(), other.Name(), false)
+		cl.Recieve(sentMessage)
 		return NewResponse(true, 0, "", nil)	
 	}
 	return NewResponse(false, 42, "Could not find a client with that name.", nil)
@@ -327,7 +335,7 @@ func (cl *Client) Quit() *Response {
 
 //Send sends the message to the clients room.
 func (cl *Client) Send(m string) *Response {
-	message := message.NewClientMessage(m, cl.Name())
+	message := message.NewSendMessage(m, cl.Name())
 	if cl.room != nil {
 		cl.log(fmt.Sprint(message))
 		cl.room.Send(message)

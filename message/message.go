@@ -12,6 +12,12 @@ type Message interface {
 	String() string
 }
 
+//ClientMessage is an interface for messages that can be blocked.
+type ClientMessage interface {
+	String() string
+	Name() string //name of the client that sent the message
+}
+
 //messageList is a mutex enhanced linked list of messages.
 type MessageList struct {
 	*list.List
@@ -38,26 +44,63 @@ func (m ServerMessage) String() string {
 	return m.text
 }
 
-//clientMessage includes the text of the message, the time it was sent and the client who sent it.
-type ClientMessage struct {
+//SendMessage includes the text of the message, the time it was sent and the client who sent it.  It is used primarily for normal messages sent to the room with send.
+type SendMessage struct {
 	text   string
 	time   time.Time
 	Sender string
 }
 
 //String formats the clientMessage as time [Sender]: text.
-func (m ClientMessage) String() string {
+func (m SendMessage) String() string {
 	const layout = "3:04pm"
 	return fmt.Sprintf("%s [%v]: %v", m.time.Format(layout), m.Sender, m.text)
 }
 
-//newMessage creates a new client message
-func NewClientMessage(t string, s string) *ClientMessage {
-	msg := new(ClientMessage)
+//Name returns the name of the client that send the message.
+func (m SendMessage) Name() string {
+	return m.Sender
+}
+
+//NewSendMessage creates a new client message
+func NewSendMessage(t string, s string) *SendMessage {
+	msg := new(SendMessage)
 	msg.text = t
 	msg.time = time.Now()
 	msg.Sender = s
 	return msg
+}
+
+//TellMessage is a message sent by a tell.
+type TellMessage struct {
+	text	string
+	time	time.Time
+	Sender	string
+	Reciever string
+	ToReciever	bool
+}
+
+func NewTellMessage(text string, sender string,reciever string, toReciever bool) *TellMessage {
+	msg := new(TellMessage)
+	msg.text = text
+	msg.time = time.Now()
+	msg.Sender = sender
+	msg.Reciever = reciever
+	msg.ToReciever = toReciever
+	return msg
+}
+
+func (m TellMessage) String() string {
+	const layout = "3:04pm"
+	if m.ToReciever {
+		return fmt.Sprintf("%s [From %v]>>>: %v",m.time.Format(layout), m.Sender, m.text)
+	} else {
+		return fmt.Sprintf("%s <<<[To %v]: %v",m.time.Format(layout), m.Reciever, m.text)
+	}
+}
+
+func (m TellMessage) Name() string {
+	return m.Sender
 }
 
 //restMessage is a message sent from the REST API.

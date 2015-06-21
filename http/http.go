@@ -303,7 +303,7 @@ func (cl *Connection) SendMessage(m message.Message) {
 
 //Close removes the client from any room, deletes its token from the map and stops its timeout function.
 func (cl *Connection) Close() {
-	cl.client.Leave()
+	cl.client.LeaveRoom()
 	cl.cMap.Delete(cl.token)
 	_ = cl.timeOut.Stop()
 }

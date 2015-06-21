@@ -10,6 +10,7 @@ Codes - will be found in header under "code" if the action fails and indicates t
 32 Can't block self
 40 Not in a Room
 41 Room does not exist
+42 Client not found
 50 Server Error
 60 Unsupported Method
 70 Invalid Command
@@ -195,5 +196,16 @@ Body- login object consisting of name: user name and password: the user's passwo
 Response-
 If Header "success" = "true"
 Body- blank
-if Header "success" = "false"
+If Header "success" = "false"
+Body- may contain a reason for the failure
+
+Tell
+Purpose- Send a message to a specified client.
+URI- /tell
+Method- POST
+Body- string: name of client to send message to, string: the message
+Response-
+If Header "success" = "true"
+Body- blank
+If Header "success" = "false"
 Body- may contain a reason for the failure
