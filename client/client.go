@@ -258,8 +258,8 @@ func (cl *Client) Unfriend(name string) *Response {
 
 //Friend represents a person on your friends list.  room will instead be the last online string if they are not online now.
 type Friend struct {
-	name string
-	room string
+	Name string
+	Room string
 }
 
 //FriendList gives a list of people on the clients friendlist and the room they are in or when they were last logged in.
@@ -270,18 +270,22 @@ func (cl *Client) FriendList() *Response {
 	}
 	flist := make([]Friend, len(list), len(list))
 	for i := range list {
-		flist[i] = Friend{name: list[i], room: cl.rooms.FindClientRoom(list[i])}
-		if flist[i].room == "" {
-			lo, err := cl.data.LastOnline(flist[i].name)
-			if err != nil {
-				log.Println(err)
+		flist[i] = Friend{Name: list[i], Room: cl.rooms.FindClientRoom(list[i])}
+		if flist[i].Room == "" {
+			lo, err := cl.data.LastOnline(flist[i].Name)
+			if err != nil && err != clientdata.ErrClientNotFound {
+				log.Println("Friend List error: ", err)
 			}
-			flist[i].room = durationString(time.Since(lo))
+			if err == clientdata.ErrClientNotFound {
+				flist[i].Room = "Not Found"
+			} else {
+				flist[i].Room = durationString(time.Since(lo))
+			}
 		}
 	}
 	sresp := "Friend \t\t Room/Last Online"
 	for i := range flist {
-		sresp = sresp + "\n\r" + flist[i].name + "\t\t" + flist[i].room
+		sresp = sresp + "\n\r" + flist[i].Name + "\t\t" + flist[i].Room
 	}
 	return NewResponse(true, 0, sresp, flist)
 }

@@ -132,6 +132,9 @@ func (cdd *DataAccess) LastOnline(name string) (time.Time, error) {
 	if err != nil {
 		return time.Now(), err
 	}
+	if len(res) == 0 {
+		return time.Now(), ErrClientNotFound
+	}
 	t, err := time.Parse("2006-01-02 15:04:05.999999999 -0700 MST", res[0]["lastonline"])
 	return t, err
 }
