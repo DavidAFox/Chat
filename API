@@ -209,3 +209,14 @@ If Header "success" = "true"
 Body- blank
 If Header "success" = "false"
 Body- may contain a reason for the failure
+
+Update
+Purpose- to update more than one set of data with a combined request.
+URI - /update
+Method- POST
+Body- []string: slice of things you want to get... currently supports who, friendlist, messages
+Response-
+If Header "success" = "true"
+Body- Map with request string as key.  Each value will be the same as in the body of that type of request.
+If Header "success" = "false"
+Body- Same map as with success but one or more values may contain "failed" string instead of the appropriate data.

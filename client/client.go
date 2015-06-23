@@ -285,7 +285,7 @@ func (cl *Client) FriendList() *Response {
 	}
 	sresp := "Friend \t\t Room/Last Online"
 	for i := range flist {
-		sresp = sresp + "\n\r" + flist[i].Name + "\t\t" + flist[i].Room
+		sresp = sresp + "\n\r" + flist[i].Name + "\t\t\t" + flist[i].Room
 	}
 	return NewResponse(true, 0, sresp, flist)
 }

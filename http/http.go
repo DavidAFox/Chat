@@ -120,6 +120,10 @@ func (h *RoomHandler) ServeHTTP(w http.ResponseWriter, rq *http.Request) {
 			c.GetMessages(w, rq)
 			return
 		}
+		if path[1] == "update" {
+			c.Update(w, rq)
+			return
+		}
 		com := make([]string, 1, 1)
 		switch len(path) {
 		case 3:
@@ -327,6 +331,61 @@ func (cl *Connection) GetMessages(w http.ResponseWriter, rq *http.Request) {
 	if err != nil {
 		log.Println("Error encoding messages: ", err)
 	}
+}
+
+//Update is an alternative to GetMessages that an http client can use to update data with one request.  The body should contain a slice of strings representing the different data that the client wants.
+func (cl *Connection) Update(w http.ResponseWriter, rq *http.Request) {
+	requests := make([]string, 0, 0)
+	dec := json.NewDecoder(rq.Body)
+	err := dec.Decode(&requests)
+	if err != nil {
+		log.Println(err)
+	}
+	resp := make(map[string]interface{})
+	failed := false
+	for _, i := range requests {
+		switch i {
+		case "messages":
+			cl.messages.Lock()
+			m := make([]string, cl.messages.Len(), cl.messages.Len())
+			for i, x := cl.messages.Front(), 0; i != nil; i, x = i.Next(), x+1 {
+				m[x] = fmt.Sprint(i.Value)
+			}
+			for i, x := cl.messages.Front(), cl.messages.Front(); i != nil; {
+				x = i
+				i = i.Next()
+				cl.messages.Remove(x)
+			}
+			cl.messages.Unlock()
+			resp["messages"] = m
+		case "friendlist":
+			r := cl.client.FriendList()
+			if r.Success {
+				resp["friendlist"] = r.Data
+			} else {
+				failed = true
+				resp["friendlist"] = "failed"
+			}
+		case "who":
+			r := cl.client.Who("")
+			if r.Success{
+				resp["who"] = r.Data
+			} else {
+				failed = true
+				resp["who"] = "failed"
+			}			
+		default:
+			resp[i] = "failed"
+			failed = true		
+		}
+	}
+	enc := json.NewEncoder(w)
+	if failed {
+		w.Header().Set("success", "false")
+	} else {
+		w.Header().Set("success", "true")
+	}
+	err = enc.Encode(resp)
 }
 
 //ClientMap is a concurrent safe map of clients
