@@ -8,7 +8,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"github.com/davidafox/chat/client"
 	"github.com/davidafox/chat/clientdata"
 	"github.com/davidafox/chat/message"
@@ -315,9 +314,9 @@ func (cl *Connection) Close() {
 //GetMessage gets all the messages for a client since the last time they were checked and then removes them from their message list.
 func (cl *Connection) GetMessages(w http.ResponseWriter, rq *http.Request) {
 	cl.messages.Lock()
-	m := make([]string, cl.messages.Len(), cl.messages.Len())
+	m := make([]message.Message, cl.messages.Len(), cl.messages.Len())
 	for i, x := cl.messages.Front(), 0; i != nil; i, x = i.Next(), x+1 {
-		m[x] = fmt.Sprint(i.Value)
+		m[x] = i.Value.(message.Message)
 	}
 	for i, x := cl.messages.Front(), cl.messages.Front(); i != nil; {
 		x = i
@@ -347,9 +346,9 @@ func (cl *Connection) Update(w http.ResponseWriter, rq *http.Request) {
 		switch i {
 		case "messages":
 			cl.messages.Lock()
-			m := make([]string, cl.messages.Len(), cl.messages.Len())
+			m := make([]message.Message, cl.messages.Len(), cl.messages.Len())
 			for i, x := cl.messages.Front(), 0; i != nil; i, x = i.Next(), x+1 {
-				m[x] = fmt.Sprint(i.Value)
+				m[x] = i.Value.(message.Message)
 			}
 			for i, x := cl.messages.Front(), cl.messages.Front(); i != nil; {
 				x = i

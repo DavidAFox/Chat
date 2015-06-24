@@ -31,30 +31,33 @@ func NewMessageList() *MessageList {
 
 //serverMessage is a message containing only a string sent from the server.
 type ServerMessage struct {
-	text string
+	Text string
+	Type string
 }
 
 //NewServerMessage returns a new ServerMessage.
 func NewServerMessage(text string) *ServerMessage {
-	return &ServerMessage{text: text}
+	return &ServerMessage{Text: text, Type: "Server"}
 }
 
 //String returns the string representation of the serverMessage.
 func (m ServerMessage) String() string {
-	return m.text
+	return m.Text
 }
 
 //SendMessage includes the text of the message, the time it was sent and the client who sent it.  It is used primarily for normal messages sent to the room with send.
 type SendMessage struct {
-	text   string
-	time   time.Time
+	Text   string
+	Time   time.Time
+	TimeString	string
 	Sender string
+	Type	string
 }
 
 //String formats the clientMessage as time [Sender]: text.
 func (m SendMessage) String() string {
 	const layout = "3:04pm"
-	return fmt.Sprintf("%s [%v]: %v", m.time.Format(layout), m.Sender, m.text)
+	return fmt.Sprintf("%s [%v]: %v", m.Time.Format(layout), m.Sender, m.Text)
 }
 
 //Name returns the name of the client that send the message.
@@ -65,25 +68,58 @@ func (m SendMessage) Name() string {
 //NewSendMessage creates a new client message
 func NewSendMessage(t string, s string) *SendMessage {
 	msg := new(SendMessage)
-	msg.text = t
-	msg.time = time.Now()
+	msg.Text = t
+	msg.Time = time.Now()
+	msg.TimeString = msg.Time.Format("3:04pm")
 	msg.Sender = s
+	msg.Type = "Send"
+	return msg
+}
+
+type JoinMessage struct {
+	Subject string
+	Text string
+	Type string
+}
+
+
+func NewJoinMessage(subject string) *JoinMessage{
+	msg := new(JoinMessage)
+	msg.Subject = subject
+	msg.Text = "has joined the room."
+	msg.Type = "Join"
+	return msg
+}
+
+func (m JoinMessage) String() string {
+	return fmt.Sprintf("%v %v", m.Subject, m.Text)
+}
+
+func NewLeaveMessage(subject string) *JoinMessage {
+	msg := new(JoinMessage)
+	msg.Subject = subject
+	msg.Text = "has left the room."
+	msg.Type = "Join"
 	return msg
 }
 
 //TellMessage is a message sent by a tell.
 type TellMessage struct {
-	text	string
-	time	time.Time
+	Text	string
+	TimeString string
+	Time	time.Time
 	Sender	string
 	Reciever string
 	ToReciever	bool
+	Type string
 }
 
 func NewTellMessage(text string, sender string,reciever string, toReciever bool) *TellMessage {
 	msg := new(TellMessage)
-	msg.text = text
-	msg.time = time.Now()
+	msg.Text = text
+	msg.Time = time.Now()
+	msg.TimeString = msg.Time.Format("3:04pm")
+	msg.Type = "Tell"
 	msg.Sender = sender
 	msg.Reciever = reciever
 	msg.ToReciever = toReciever
@@ -93,9 +129,9 @@ func NewTellMessage(text string, sender string,reciever string, toReciever bool)
 func (m TellMessage) String() string {
 	const layout = "3:04pm"
 	if m.ToReciever {
-		return fmt.Sprintf("%s [From %v]>>>: %v",m.time.Format(layout), m.Sender, m.text)
+		return fmt.Sprintf("%s [From %v]>>>: %v",m.Time.Format(layout), m.Sender, m.Text)
 	} else {
-		return fmt.Sprintf("%s <<<[To %v]: %v",m.time.Format(layout), m.Reciever, m.text)
+		return fmt.Sprintf("%s <<<[To %v]: %v",m.Time.Format(layout), m.Reciever, m.Text)
 	}
 }
 

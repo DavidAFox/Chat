@@ -101,7 +101,26 @@ Header "Authorization"- token from the server
 Body- blank
 Response-
 If Header "success" = "true"
-Body- []messages sent to the user since the last time Get Messages was sent.
+Body- []messages sent to the user since the last time Get Messages was sent. messages contain a type field to specify the type of message.
+
+"Server"
+Text - the text of the message
+"Send"
+Text - the text of the message
+Time - a go time object of when the message was sent
+TimeString - a string representation of the time the message was sent
+Sender - the name of the client that sent the message
+"Join"
+Text - the text of the message
+Subject - the name of the client that joined or left the room
+"Tell"
+Text - the text of the message
+Time - a go time object of when the message was sent
+TimeString - a string representation of the time the message was sent
+Sender - the name of the client that sent the message
+Reciever - the name of the client the message was sent to
+ToReciever - a bool that is true if this is the reciever's copy of the message
+
 If Header "success" = "false"
 Body- may contain a reason for failure
 

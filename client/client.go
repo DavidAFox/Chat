@@ -142,7 +142,7 @@ func (cl *Client) Execute(command []string) *Response {
 		if len(command) < 3 {
 			command = append(command, "")
 		}
-		return cl.Tell(command[1], command[2])				
+		return cl.Tell(command[1], command[2])
 	default:
 		return NewResponse(false, 70, "Invalid Command", nil)
 	}
@@ -316,8 +316,8 @@ func (cl *Client) LeaveRoom() {
 		rm2 := cl.room
 		_ = cl.room.Remove(cl)
 		cl.room = nil
-		rm2.Tell(fmt.Sprintf("%v leaves the room.", cl.Name()))
-		cl.Recieve(message.NewServerMessage(fmt.Sprintf("%v leaves the room.", cl.Name())))
+		rm2.Send(message.NewLeaveMessage(cl.Name()))
+		cl.Recieve(message.NewLeaveMessage(cl.Name()))
 	}
 }
 
@@ -362,7 +362,7 @@ func durationString(d time.Duration) string {
 	case d > time.Minute:
 		return strconv.Itoa(int(d/time.Minute)) + " Minutes ago"
 	default:
-		return strconv.Itoa(int(d/time.Second)) + " Seconds ago"						
+		return strconv.Itoa(int(d/time.Second)) + " Seconds ago"
 	}
 }
 
@@ -385,7 +385,7 @@ func (cl *Client) Join(rmName string) *Response {
 		cl.room = rm
 		rm.Add(cl)
 	}
-	cl.room.Tell(fmt.Sprintf("%v has joined the room.", cl.Name()))
+	cl.room.Send(message.NewJoinMessage(cl.Name()))
 	return NewResponse(true, 0, "", nil)
 }
 
