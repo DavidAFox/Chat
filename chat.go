@@ -6,12 +6,13 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/davidafox/chat/client"
 	"github.com/davidafox/chat/clientdata"
 	"github.com/davidafox/chat/clientdata/datafactory"
-	chathttp "github.com/davidafox/chat/http"
+	chathttp "github.com/davidafox/chat/connections/http"
+	"github.com/davidafox/chat/connections/telnet"
 	"github.com/davidafox/chat/message"
 	"github.com/davidafox/chat/room"
-	"github.com/davidafox/chat/telnet"
 	"io"
 	"log"
 	"net"
@@ -132,7 +133,7 @@ Outerloop:
 //serverHTTPTLS sets up the http handlers and then runs ListenAndServeTLS.
 func serverHTTPTLS(rooms *room.RoomList, chl *os.File, c *config, df clientdata.Factory) {
 	mux := http.NewServeMux()
-	room := chathttp.NewRoomHandler(rooms, chl, df, c.Origin)
+	room := chathttp.NewRoomHandler(chathttp.Options{RoomList: rooms, ChatLog: chl, DataFactory: df, ClientFactory: client.NewFactory(rooms, chl, df), Origin: c.Origin})
 	mux.Handle("/", room)
 	rest := newRestHandler(rooms, chl)
 	mux.Handle("/rest/", rest)
@@ -145,7 +146,7 @@ func serverHTTPTLS(rooms *room.RoomList, chl *os.File, c *config, df clientdata.
 //serverHTTP sets up the http handlers and then runs ListenAndServe
 func serverHTTP(rooms *room.RoomList, chl *os.File, c *config, df clientdata.Factory) {
 	mux := http.NewServeMux()
-	room := chathttp.NewRoomHandler(rooms, chl, df, c.Origin)
+	room := chathttp.NewRoomHandler(chathttp.Options{RoomList: rooms, ChatLog: chl, DataFactory: df, ClientFactory: client.NewFactory(rooms, chl, df), Origin: c.Origin})
 	mux.Handle("/", room)
 	rest := newRestHandler(rooms, chl)
 	mux.Handle("/rest/", rest)

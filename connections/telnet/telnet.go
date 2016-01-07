@@ -12,7 +12,6 @@ import (
 	"io"
 	"log"
 	"net"
-	"os"
 	"regexp"
 	"strings"
 )
@@ -24,11 +23,10 @@ type Connection struct {
 }
 
 //New creates a new connection and associated client.
-func New(name string, roomlist *room.RoomList, chatlog *os.File, data clientdata.ClientData, conn net.Conn) *Connection {
+func New(name string, roomlist *room.RoomList, chatlog io.Writer, data clientdata.ClientData, conn net.Conn) *Connection {
 	c := new(Connection)
-	c.client = client.New(name, roomlist, chatlog, data, c)
 	c.conn = conn
-	_ = c.client.Join("Lobby")
+	c.client = client.New(name, roomlist, chatlog, data, c)
 	return c
 }
 
@@ -133,7 +131,7 @@ func getInput(conn net.Conn, text string) string {
 }
 
 //TelnetLogin is used to initiate clients.
-func TelnetLogin(conn net.Conn, rooms *room.RoomList, chl *os.File, cd clientdata.ClientData) {
+func TelnetLogin(conn net.Conn, rooms *room.RoomList, chl io.Writer, cd clientdata.ClientData) {
 	logged := false
 	var name string
 	var err error
@@ -172,6 +170,8 @@ func (c *Connection) inputhandler() {
 		input, err := readString(c.conn)
 		if err != nil {
 			log.Println("Error Reading", err)
+			c.client.LeaveRoom()
+			return
 		}
 		if strings.HasPrefix(input, "/") { // handle commands
 			input = strings.TrimPrefix(input, "/")
@@ -180,8 +180,12 @@ func (c *Connection) inputhandler() {
 		}
 		cmd := strings.Fields(input)
 		resp := c.client.Execute(cmd)
-		if resp.StringResponse != "" && cmd[0] != "quit" {
-			_, err = io.WriteString(c.conn, resp.StringResponse+"\r\n")
+		if resp.String() != "" && cmd[0] != "quit" {
+			_, err = io.WriteString(c.conn, resp.String()+"\r\n")
+		}
+		if cmd[0] == "quit" {
+			c.client.LeaveRoom()
+			return
 		}
 		if err != nil {
 			log.Println(err)

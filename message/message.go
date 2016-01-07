@@ -47,11 +47,11 @@ func (m ServerMessage) String() string {
 
 //SendMessage includes the text of the message, the time it was sent and the client who sent it.  It is used primarily for normal messages sent to the room with send.
 type SendMessage struct {
-	Text   string
-	Time   time.Time
-	TimeString	string
-	Sender string
-	Type	string
+	Text       string
+	Time       time.Time
+	TimeString string
+	Sender     string
+	Type       string
 }
 
 //String formats the clientMessage as time [Sender]: text.
@@ -66,24 +66,23 @@ func (m SendMessage) Name() string {
 }
 
 //NewSendMessage creates a new client message
-func NewSendMessage(t string, s string) *SendMessage {
+func NewSendMessage(text string, sender string) *SendMessage {
 	msg := new(SendMessage)
-	msg.Text = t
+	msg.Text = text
 	msg.Time = time.Now()
 	msg.TimeString = msg.Time.Format("3:04pm")
-	msg.Sender = s
+	msg.Sender = sender
 	msg.Type = "Send"
 	return msg
 }
 
 type JoinMessage struct {
 	Subject string
-	Text string
-	Type string
+	Text    string
+	Type    string
 }
 
-
-func NewJoinMessage(subject string) *JoinMessage{
+func NewJoinMessage(subject string) *JoinMessage {
 	msg := new(JoinMessage)
 	msg.Subject = subject
 	msg.Text = "has joined the room."
@@ -105,16 +104,16 @@ func NewLeaveMessage(subject string) *JoinMessage {
 
 //TellMessage is a message sent by a tell.
 type TellMessage struct {
-	Text	string
+	Text       string
 	TimeString string
-	Time	time.Time
-	Sender	string
-	Reciever string
-	ToReciever	bool
-	Type string
+	Time       time.Time
+	Sender     string
+	Reciever   string
+	ToReciever bool
+	Type       string
 }
 
-func NewTellMessage(text string, sender string,reciever string, toReciever bool) *TellMessage {
+func NewTellMessage(text string, sender string, reciever string, toReciever bool) *TellMessage {
 	msg := new(TellMessage)
 	msg.Text = text
 	msg.Time = time.Now()
@@ -129,9 +128,9 @@ func NewTellMessage(text string, sender string,reciever string, toReciever bool)
 func (m TellMessage) String() string {
 	const layout = "3:04pm"
 	if m.ToReciever {
-		return fmt.Sprintf("%s [From %v]>>>: %v",m.Time.Format(layout), m.Sender, m.Text)
+		return fmt.Sprintf("%s [From %v]>>>: %v", m.Time.Format(layout), m.Sender, m.Text)
 	} else {
-		return fmt.Sprintf("%s <<<[To %v]: %v",m.Time.Format(layout), m.Reciever, m.Text)
+		return fmt.Sprintf("%s <<<[To %v]: %v", m.Time.Format(layout), m.Reciever, m.Text)
 	}
 }
 
