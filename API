@@ -20,7 +20,7 @@ Codes - will be found in header under "code" if the action fails and indicates t
 
 List
 Purpose- List is used to get a list of the current rooms.
-URI- /rooms/list
+URI- /list
 Method- GET
 Header "Authorization"- token from the server
 Body- blank
@@ -32,7 +32,7 @@ Body- may contain a reason for failure
 
 Quit
 Purpose- Quit is used to log out of the server.
-URI- /rooms/quit or /rooms/RoomName/quit
+URI- /quit
 Method- POST
 Header "Authorization"- token from the server
 Body- blank
@@ -44,10 +44,10 @@ Body- may contain a reason for failure
 
 Who
 Purpose- Who is used to get a list of users in a room.  The default room is the room the user is currently in.
-URI- /rooms/who or /rooms/RoomName/who
+URI- /who
 Method- GET
 Header "Authorization"- token from the server
-Body- blank
+Body- the room to get the list from
 Response-
 If Header "success" = "true"
 Body-
@@ -59,7 +59,7 @@ will return http 401 status not found if the room doesn't exist
 
 Leave
 Purpose- Leave is used to leave the room the user is currently in.
-URI- /rooms/leave or /rooms/RoomName/leave
+URI- /leave
 Method- POST
 Header "Authorization"- token from the server
 Body- blank
@@ -71,10 +71,10 @@ Body- may contain a reason for failure
 
 Join
 Purpose- Join is used to add the user to a room.  If the room does not exist it will be created.
-URI- /rooms/RoomName/join
+URI- /join
 Method- POST
 Header "Authorization"- token from the server
-Body- blank
+Body- room to join
 Response-
 If Header "success" = "true"
 Body- blank
@@ -200,7 +200,7 @@ Login
 Purpose- Login is used to login to the server and get a token for use in most of the other actions.
 URI- /login
 Method- POST
-Body- login object consisting of name: user name and password: the user's password
+Body- user name and password
 Response-
 If Header "success" = "true"
 Body- users token
@@ -211,7 +211,7 @@ Register
 Purpose- Register is used to create a new user account.
 URI- /register
 Method- POST
-Body- login object consisting of name: user name and password: the user's password
+Body- user name and password
 Response-
 If Header "success" = "true"
 Body- blank
@@ -239,3 +239,6 @@ If Header "success" = "true"
 Body- Map with request string as key.  Each value will be the same as in the body of that type of request.
 If Header "success" = "false"
 Body- Same map as with success but one or more values may contain "failed" string instead of the appropriate data.
+
+
+Body messages in requests should be wrapped in []

@@ -8,14 +8,15 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
-	"github.com/davidafox/chat/client"
 	"github.com/davidafox/chat/clientdata"
+	"github.com/davidafox/chat/connections"
+	"github.com/davidafox/chat/connections/websocket"
 	"github.com/davidafox/chat/message"
 	"github.com/davidafox/chat/room"
+	gorilla "github.com/gorilla/websocket"
 	"io"
 	"log"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -23,7 +24,7 @@ import (
 
 //Connection is used to pass information between the client and the client object.
 type Connection struct {
-	client   *client.Client
+	client   connections.Client
 	messages *message.MessageList
 	timeOut  *time.Timer
 	token    string
@@ -31,36 +32,52 @@ type Connection struct {
 }
 
 //New creates a new Connection and associated client.
-func New(m *ClientMap, name string, roomlist *room.RoomList, chatlog *os.File, data clientdata.ClientData) *Connection {
+func (h *RoomHandler) New(m *ClientMap, name string, roomlist *room.RoomList, chatlog io.Writer, data clientdata.ClientData) *Connection {
 	c := new(Connection)
-	c.client = client.New(name, roomlist, chatlog, data, c)
 	c.messages = message.NewMessageList()
 	c.token = newToken()
 	d := 5 * time.Minute
 	c.timeOut = time.AfterFunc(d, c.Close)
 	c.cMap = m
-	_ = c.client.Join("Lobby")
+	c.client = h.clientFactory.New(name, c)
 	return c
 }
 
 //RoomHandler handles the HTTP client requests.
 type RoomHandler struct {
-	clients     *ClientMap
-	rooms       *room.RoomList
-	chl         *os.File
-	datafactory clientdata.Factory
-	origin      string
+	clients       *ClientMap
+	rooms         *room.RoomList
+	chl           io.Writer
+	datafactory   clientdata.Factory
+	clientFactory connections.ClientFactory
+	origin        string
+}
+
+type Options struct {
+	RoomList      *room.RoomList
+	ChatLog       io.Writer
+	DataFactory   clientdata.Factory
+	ClientFactory connections.ClientFactory
+	Origin        string
 }
 
 //NewRoomHandler initializes and returns a new roomHandler.
-func NewRoomHandler(rooms *room.RoomList, chl *os.File, df clientdata.Factory, origin string) *RoomHandler {
+func NewRoomHandler(options Options) *RoomHandler {
 	r := new(RoomHandler)
-	r.rooms = rooms
-	r.chl = chl
+	if options.RoomList == nil || options.DataFactory == nil || options.ClientFactory == nil {
+		panic("Missing options in NewRoomHandler")
+	}
+	r.rooms = options.RoomList
+	if options.ChatLog != nil {
+		r.chl = options.ChatLog
+	} else {
+
+	}
 	r.clients = NewClientMap()
-	r.datafactory = df
-	if origin != "" {
-		r.origin = origin
+	r.datafactory = options.DataFactory
+	r.clientFactory = options.ClientFactory
+	if options.Origin != "" {
+		r.origin = options.Origin
 	} else {
 		r.origin = "*"
 	}
@@ -76,7 +93,7 @@ func (h *RoomHandler) CheckToken(rq *http.Request) bool {
 	return false
 }
 
-//GetClient returns the client associated with the "Autorization" token in the header of the request if they are found.  If the Client is not present in the map a new client is created and returned.
+//GetConnection returns the Connection associated with the "Autorization" token in the header of the request if they are found.  If the Client is not present in the map a new client is created and returned.
 func (h *RoomHandler) GetConnection(rq *http.Request) *Connection {
 	if !h.CheckToken(rq) {
 		return nil
@@ -103,6 +120,19 @@ func (h *RoomHandler) ServeHTTP(w http.ResponseWriter, rq *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", h.origin)
 	w.Header().Set("Access-Control-Expose-Headers", "Success")
 	w.Header().Add("Access-Control-Expose-Headers", "Code")
+	if strings.ToLower(rq.Header.Get("Upgrade")) == "websocket" {
+		upgrader := &gorilla.Upgrader{HandshakeTimeout: (time.Minute * 2), ReadBufferSize: 1024, WriteBufferSize: 1024, CheckOrigin: func(r *http.Request) bool { return true /*r.Header.Get("Origin") == h.origin*/ }}
+		socket, err := upgrader.Upgrade(w, rq, nil)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		go websocket.Start(socket, &websocket.Options{RoomList: h.rooms, ClientFactory: h.clientFactory, DataFactory: h.datafactory, ChatLog: h.chl})
+		return
+	}
+	if len(path) < 2 {
+		return
+	}
 	switch path[1] {
 	case "login":
 		h.Login(w, rq)
@@ -119,47 +149,24 @@ func (h *RoomHandler) ServeHTTP(w http.ResponseWriter, rq *http.Request) {
 			c.GetMessages(w, rq)
 			return
 		}
-		if path[1] == "update" {
-			c.Update(w, rq)
-			return
-		}
 		com := make([]string, 1, 1)
-		switch len(path) {
-		case 3:
-			com[0] = path[2]
-		case 4:
-			com[0] = path[3]
-			com = append(com, path[2])
-		case 2:
-			com[0] = path[1]
-		default:
-			com[0] = path[len(path)-1]
-		}
-		if path[1] == "messages" {
-			com[0] = "send"
-		}
-		dec := json.NewDecoder(rq.Body)
+		com[0] = path[1]
 		args := make([]string, 0, 0)
-		var arg string
-		err := dec.Decode(&arg)
-		for err == nil { //read any args from the body
-			args = append(args, arg)
-			err = dec.Decode(&arg)
-			if err != nil && err != io.EOF {
-				log.Println("Error decoding in ServeHTTP: ", err)
-			}
-
+		dec := json.NewDecoder(rq.Body)
+		err := dec.Decode(&args)
+		if err != nil {
+			log.Println(err)
 		}
 		com = append(com, args...)
 		resp := c.client.Execute(com) //do the stuff
-		w.Header().Set("success", strconv.FormatBool(resp.Success))
-		w.Header().Set("code", strconv.Itoa(resp.Code))
-		switch resp.Code {
+		w.Header().Set("success", strconv.FormatBool(resp.Success()))
+		w.Header().Set("code", strconv.Itoa(resp.Code()))
+		switch resp.Code() {
 		case 70:
 			w.WriteHeader(http.StatusNotFound)
 			return
 		case 60:
-			w.Header().Set("Allow", resp.Data.(string))
+			w.Header().Set("Allow", resp.Data().(string))
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		case 50:
@@ -167,32 +174,33 @@ func (h *RoomHandler) ServeHTTP(w http.ResponseWriter, rq *http.Request) {
 			return
 		default:
 			enc := json.NewEncoder(w)
-			if rq.Header.Get("Data") == "simple" || !resp.Success {
-				err := enc.Encode(resp.StringResponse)
+			if rq.Header.Get("Data") == "simple" || !resp.Success() {
+				err := enc.Encode(resp.String())
 				if err != nil {
 					log.Println(err)
 				}
 			} else {
-				if resp.Data != nil {
-					err := enc.Encode(resp.Data)
-					if err != nil {
-						log.Println(err)
-					}
+				info := new(Response)
+				info.Data = resp.Data()
+				info.String = resp.String()
+				enc := json.NewEncoder(w)
+				err := enc.Encode(info)
+				if err != nil {
+					log.Println(err)
 				}
 			}
 		}
 	}
 }
 
-//login is an object used for decoding login information.
-type login struct {
-	Name     string
-	Password string
+type Response struct {
+	Data   interface{}
+	String string
 }
 
 //Register is used to create new accounts through the http api.  It expects a login object in the body representing the account to be created.
 func (h *RoomHandler) Register(w http.ResponseWriter, rq *http.Request) {
-	l := new(login)
+	l := make([]string, 0, 0)
 	if rq.Method != "POST" {
 		w.Header().Set("success", "false")
 		w.Header().Set("code", "60")
@@ -210,7 +218,10 @@ func (h *RoomHandler) Register(w http.ResponseWriter, rq *http.Request) {
 	if err != nil {
 		log.Println("Error decoding in Register: ", err)
 	}
-	if !clientdata.ValidateName(l.Name) {
+	if len(l) < 2 {
+		log.Println("not enough args in Register")
+	}
+	if !clientdata.ValidateName(l[0]) {
 		w.Header().Set("success", "false")
 		w.Header().Set("code", "20")
 		enc := json.NewEncoder(w)
@@ -220,8 +231,8 @@ func (h *RoomHandler) Register(w http.ResponseWriter, rq *http.Request) {
 		}
 		return
 	}
-	data := h.datafactory.Create(l.Name)
-	err = data.NewClient(l.Password)
+	data := h.datafactory.Create(l[0])
+	err = data.NewClient(l[1])
 	switch {
 	case err == clientdata.ErrClientExists:
 		w.Header().Set("success", "false")
@@ -241,14 +252,18 @@ func (h *RoomHandler) Register(w http.ResponseWriter, rq *http.Request) {
 //Login takes a login(name, password) from the rq body and tries to log the client in.  It will return a response with header "success" = "true" if the login is successful.
 func (h *RoomHandler) Login(w http.ResponseWriter, rq *http.Request) {
 	var success bool
-	l := new(login)
+	l := make([]string, 0, 0)
 	dec := json.NewDecoder(rq.Body)
 	err := dec.Decode(&l)
 	if err != nil {
 		ServerError(w, err)
 		return
 	}
-	if !clientdata.ValidateName(l.Name) {
+	if len(l) < 2 {
+		log.Println("Not enough args in login")
+		return
+	}
+	if !clientdata.ValidateName(l[0]) {
 		w.Header().Set("success", "false")
 		w.Header().Set("code", "20")
 		enc := json.NewEncoder(w)
@@ -258,8 +273,8 @@ func (h *RoomHandler) Login(w http.ResponseWriter, rq *http.Request) {
 		}
 		return
 	}
-	data := h.datafactory.Create(l.Name)
-	success, err = data.Authenticate(l.Password)
+	data := h.datafactory.Create(l[0])
+	success, err = data.Authenticate(l[1])
 	if err != nil {
 		ServerError(w, err)
 		return
@@ -267,7 +282,7 @@ func (h *RoomHandler) Login(w http.ResponseWriter, rq *http.Request) {
 	enc := json.NewEncoder(w)
 	if success {
 		w.Header().Set("success", "true")
-		c := New(h.clients, l.Name, h.rooms, h.chl, data)
+		c := h.New(h.clients, l[0], h.rooms, h.chl, data)
 		c.cMap.Add(c)
 		err = enc.Encode(c.token)
 		if err != nil {
@@ -358,24 +373,24 @@ func (cl *Connection) Update(w http.ResponseWriter, rq *http.Request) {
 			cl.messages.Unlock()
 			resp["messages"] = m
 		case "friendlist":
-			r := cl.client.FriendList()
-			if r.Success {
-				resp["friendlist"] = r.Data
+			r := cl.client.Execute([]string{"friendlist"})
+			if r.Success() {
+				resp["friendlist"] = r.Data()
 			} else {
 				failed = true
 				resp["friendlist"] = "failed"
 			}
 		case "who":
-			r := cl.client.Who("")
-			if r.Success{
-				resp["who"] = r.Data
+			r := cl.client.Execute([]string{"who"})
+			if r.Success() {
+				resp["who"] = r.Data()
 			} else {
 				failed = true
 				resp["who"] = "failed"
-			}			
+			}
 		default:
 			resp[i] = "failed"
-			failed = true		
+			failed = true
 		}
 	}
 	enc := json.NewEncoder(w)
@@ -385,6 +400,9 @@ func (cl *Connection) Update(w http.ResponseWriter, rq *http.Request) {
 		w.Header().Set("success", "true")
 	}
 	err = enc.Encode(resp)
+	if err != nil {
+		log.Println("Error encoding in Update: ", err)
+	}
 }
 
 //ClientMap is a concurrent safe map of clients

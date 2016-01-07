@@ -37,6 +37,7 @@ type fileData struct {
 	FileName string
 	get      chan string
 	send     chan *ClientRecord
+	save     func() error
 }
 
 //NewFileData creates a new file data object loading the existing file or making a new one if one does not exist.
@@ -68,6 +69,9 @@ func NewFileData(fileName string) *fileData {
 		x.RWMutex = new(sync.RWMutex)
 	}
 	fd.RWMutex = new(sync.RWMutex)
+	fd.save = func() error {
+		return save(fd)
+	}
 	return fd
 }
 
@@ -191,7 +195,7 @@ func matchRow(row, matchvalue map[string]string) bool {
 }
 
 //save writes the map to the file.
-func (fd *fileData) save() error {
+func save(fd *fileData) error {
 	fd.Lock()
 	defer fd.Unlock()
 	tmp, err := os.Create(fd.FileName + ".tmp")
@@ -248,4 +252,22 @@ func newClientRecord() *ClientRecord {
 	r.Tables = make(map[string][]map[string]string)
 	r.RWMutex = new(sync.RWMutex)
 	return r
+}
+
+func NewMemData() *fileData {
+	fd := new(fileData)
+	fd.Records = make(map[string]*ClientRecord)
+	fd.FileName = ""
+	fd.get = make(chan string)
+	fd.send = make(chan *ClientRecord)
+	go fd.recordMaker()
+	fd.save = func() error { return nil }
+	fd.RWMutex = new(sync.RWMutex)
+	return fd
+}
+
+func NewMemDataFactory() *Factory {
+	f := new(Factory)
+	f.data = NewMemData()
+	return f
 }

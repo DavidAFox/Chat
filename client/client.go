@@ -3,12 +3,13 @@ package client
 import (
 	"fmt"
 	"github.com/davidafox/chat/clientdata"
+	"github.com/davidafox/chat/connections"
 	"github.com/davidafox/chat/message"
 	"github.com/davidafox/chat/room"
 	"io"
 	"log"
-	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -33,27 +34,37 @@ Codes - will be found in header under "code" if the action fails and indicates t
 70 Invalid Command
 */
 
-//Connection represents the connection to the user.
-type Connection interface {
-	SendMessage(m message.Message)
-	Close()
-}
-
 //Response is used to reply to commands from the clients connection.
 type Response struct {
-	Success        bool
-	Code           int
-	StringResponse string
-	Data           interface{}
+	success        bool
+	code           int
+	stringResponse string
+	data           interface{}
+}
+
+func (resp *Response) Success() bool {
+	return resp.success
+}
+
+func (resp *Response) Code() int {
+	return resp.code
+}
+
+func (resp *Response) String() string {
+	return resp.stringResponse
+}
+
+func (resp *Response) Data() interface{} {
+	return resp.data
 }
 
 //NewResponse returns a new response.
 func NewResponse(success bool, code int, sresp string, data interface{}) *Response {
 	resp := new(Response)
-	resp.Success = success
-	resp.Code = code
-	resp.StringResponse = sresp
-	resp.Data = data
+	resp.success = success
+	resp.code = code
+	resp.stringResponse = sresp
+	resp.data = data
 	return resp
 }
 
@@ -62,13 +73,31 @@ type Client struct {
 	name       string
 	room       *room.Room
 	rooms      *room.RoomList
-	chatlog    *os.File
+	chatlog    io.Writer
 	data       clientdata.ClientData
-	connection Connection
+	connection connections.Connection
+}
+
+type Factory struct {
+	roomlist *room.RoomList
+	chatlog  io.Writer
+	data     clientdata.Factory
+}
+
+func NewFactory(roomlist *room.RoomList, chatlog io.Writer, data clientdata.Factory) *Factory {
+	f := new(Factory)
+	f.roomlist = roomlist
+	f.chatlog = chatlog
+	f.data = data
+	return f
+}
+
+func (f *Factory) New(name string, connection connections.Connection) connections.Client {
+	return New(name, f.roomlist, f.chatlog, f.data.Create(name), connection)
 }
 
 //New returns a new client.
-func New(name string, roomlist *room.RoomList, chatlog *os.File, data clientdata.ClientData, connection Connection) *Client {
+func New(name string, roomlist *room.RoomList, chatlog io.Writer, data clientdata.ClientData, connection connections.Connection) *Client {
 	cl := new(Client)
 	cl.name = name
 	cl.rooms = roomlist
@@ -79,6 +108,7 @@ func New(name string, roomlist *room.RoomList, chatlog *os.File, data clientdata
 	if err != nil {
 		log.Println(err)
 	}
+	_ = cl.Join("Lobby")
 	return cl
 }
 
@@ -97,6 +127,10 @@ func (cl *Client) Name() string {
 	return cl.name
 }
 
+func (cl *Client) SetConnection(conn connections.Connection) {
+	cl.connection = conn
+}
+
 //Equals returns true if the client name and connection match.
 func (cl *Client) Equals(other room.Client) bool {
 	if cl.Name() == other.Name() {
@@ -106,10 +140,11 @@ func (cl *Client) Equals(other room.Client) bool {
 }
 
 //Execute parses and then runs commands from the client connection.
-func (cl *Client) Execute(command []string) *Response {
+func (cl *Client) Execute(command []string) connections.Response {
 	if len(command) < 2 {
 		command = append(command, "")
 	}
+	command[0] = strings.ToLower(command[0])
 	switch command[0] {
 	case "messages":
 		log.Println("messages")
@@ -158,7 +193,7 @@ func (cl *Client) IsBlocked(other string) bool {
 }
 
 //BlockList provides a list of the names the client is currently blocking.
-func (cl *Client) BlockList () *Response {
+func (cl *Client) BlockList() *Response {
 	clist, err := cl.data.BlockList()
 	if err != nil {
 		log.Println("BlockList: ", err)
@@ -252,7 +287,7 @@ func (cl *Client) Unfriend(name string) *Response {
 	case err != nil:
 		return NewResponse(false, 50, "", nil)
 	default:
-		return NewResponse(true, 0, fmt.Sprintf("%v is no longer on your friends list.", name), nil)		
+		return NewResponse(true, 0, fmt.Sprintf("%v is no longer on your friends list.", name), nil)
 	}
 }
 
@@ -305,12 +340,12 @@ func (cl *Client) Tell(name, m string) *Response {
 		other.Recieve(mess)
 		sentMessage := message.NewTellMessage(m, cl.Name(), other.Name(), false)
 		cl.Recieve(sentMessage)
-		return NewResponse(true, 0, "", nil)	
+		return NewResponse(true, 0, "", nil)
 	}
 	return NewResponse(false, 42, "Could not find a client with that name.", nil)
 }
 
-//LeaveRoom removes the client from its room.
+//LeaveRoom removes the client from its room. It is used for logging out.
 func (cl *Client) LeaveRoom() {
 	if cl.room != nil {
 		rm2 := cl.room
@@ -323,10 +358,10 @@ func (cl *Client) LeaveRoom() {
 
 //Leave is the client action to leave a room.  Moves the client back to the Lobby room.
 func (cl *Client) Leave() *Response {
-/*	if cl.room == nil {
-		return NewResponse(false, 40, "You are not in a room.", nil)
-	}
-	cl.LeaveRoom()
+	/*	if cl.room == nil {
+			return NewResponse(false, 40, "You are not in a room.", nil)
+		}
+		cl.LeaveRoom()
 	*/
 	return cl.Join("Lobby")
 }
@@ -351,11 +386,11 @@ func (cl *Client) Send(m string) *Response {
 
 func durationString(d time.Duration) string {
 	switch {
-	case d > (time.Hour*24*365):
+	case d > (time.Hour * 24 * 365):
 		return strconv.Itoa(int(d/(time.Hour*24*365))) + " Years ago"
-	case d > (time.Hour*24*7):
+	case d > (time.Hour * 24 * 7):
 		return strconv.Itoa(int(d/(time.Hour*24*7))) + " Weeks ago"
-	case d > (time.Hour*24):
+	case d > (time.Hour * 24):
 		return strconv.Itoa(int(d/(time.Hour*24))) + " Days ago"
 	case d > time.Hour:
 		return strconv.Itoa(int(d/time.Hour)) + " Hours ago"
@@ -366,7 +401,7 @@ func durationString(d time.Duration) string {
 	}
 }
 
-//Join adds a client to a room or creates a room if ti doesn't exist.
+//Join adds a client to a room or creates a room if it doesn't exist.
 func (cl *Client) Join(rmName string) *Response {
 	if rmName == "" {
 		return NewResponse(false, 22, "You must enter a room to join.", nil)
