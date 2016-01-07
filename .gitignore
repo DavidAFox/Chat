@@ -15,10 +15,19 @@ $RECYCLE.BIN/
 >>>>>>> Development
 *.go~
 *.swp
+*~
+
+# Cert files
+*.pem
+
+# Log
+Chat
+Test_Actions
 
 # Config files
 Config
 Config~
+Config_test
 
 # ChatLog files
 ChatLog
