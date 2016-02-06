@@ -121,7 +121,7 @@ func (h *RoomHandler) ServeHTTP(w http.ResponseWriter, rq *http.Request) {
 	w.Header().Set("Access-Control-Expose-Headers", "Success")
 	w.Header().Add("Access-Control-Expose-Headers", "Code")
 	if strings.ToLower(rq.Header.Get("Upgrade")) == "websocket" {
-		upgrader := &gorilla.Upgrader{HandshakeTimeout: (time.Minute * 2), ReadBufferSize: 1024, WriteBufferSize: 1024, CheckOrigin: func(r *http.Request) bool { return true /*r.Header.Get("Origin") == h.origin*/ }}
+		upgrader := &gorilla.Upgrader{HandshakeTimeout: (time.Minute * 2), ReadBufferSize: 1024, WriteBufferSize: 1024, CheckOrigin: func(r *http.Request) bool { return r.Header.Get("Origin") == h.origin }}
 		socket, err := upgrader.Upgrade(w, rq, nil)
 		if err != nil {
 			log.Println(err)
@@ -239,6 +239,14 @@ func (h *RoomHandler) Register(w http.ResponseWriter, rq *http.Request) {
 		w.Header().Set("code", "10")
 		enc := json.NewEncoder(w)
 		err2 := enc.Encode("A client with that name already exists.")
+		if err2 != nil {
+			log.Println("Error encoding in Register: ", err)
+		}
+	case err == clientdata.ErrAccountCreationDisabled:
+		w.Header().Set("success", "false")
+		w.Header().Set("code", "0")
+		enc := json.NewEncoder(w)
+		err2 := enc.Encode("Account creation has been disabled.")
 		if err2 != nil {
 			log.Println("Error encoding in Register: ", err)
 		}

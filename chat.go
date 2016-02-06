@@ -42,6 +42,8 @@ type config struct {
 	DatabaseName         string
 	DatabaseType         string
 	Origin               string
+	MaxRooms             int
+	DisableNewAccounts   bool
 }
 
 //configure loads the config file.
@@ -224,13 +226,14 @@ func main() {
 	loc := flag.String("config", "Config", "the location of the config file")
 	flag.Parse()
 	c := configure(*loc)
-	rooms := room.NewRoomList()
+	rooms := room.NewRoomList(c.MaxRooms)
+	defer rooms.Close()
 	chl, err := os.OpenFile(c.LogFile, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0666)
 	defer chl.Close()
 	if err != nil {
 		log.Panic(err)
 	}
-	df, err := datafactory.New(c.DatabaseType, c.DatabaseLogin, c.DatabasePassword, c.DatabaseName, c.DatabaseIP, c.DatabasePort)
+	df, err := datafactory.New(c.DatabaseType, c.DatabaseLogin, c.DatabasePassword, c.DatabaseName, c.DatabaseIP, c.DatabasePort, c.DisableNewAccounts)
 	if err != nil {
 		log.Panic(err)
 	}

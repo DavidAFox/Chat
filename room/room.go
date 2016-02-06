@@ -3,11 +3,10 @@ package room
 import (
 	"container/list"
 	"fmt"
+	"github.com/davidafox/chat/message"
 	"sort"
 	"sync"
-	"github.com/davidafox/chat/message"
 )
-
 
 //Client interface for working with the Room type.
 type Client interface {
@@ -20,16 +19,18 @@ type Client interface {
 type clientList struct {
 	*list.List
 	*sync.Mutex
+	count int
 }
 
 //NewClientList returns a pointer to an empty clientList.
 func NewClientList() *clientList {
-	return &clientList{list.New(), new(sync.Mutex)}
+	return &clientList{list.New(), new(sync.Mutex), 0}
 }
 
 //Add adds the object c to the back of the list.
 func (c *clientList) Add(cl Client) {
 	c.Lock()
+	c.count++
 	c.PushBack(cl)
 	c.Unlock()
 }
@@ -44,6 +45,7 @@ func (c *clientList) Rem(cl Client) bool {
 				x = i
 				i = i.Next()
 				c.Remove(x)
+				c.count--
 				found = true
 			} else {
 				i = i.Next()
@@ -77,7 +79,7 @@ func (c *clientList) Present(name string) bool {
 	return found
 }
 
-//GetClient returns the first client with matchint name.
+//GetClient returns the first client with matching name.
 func (c *clientList) GetClient(name string) Client {
 	for i := c.Front(); i != nil; i = i.Next() {
 		if i.Value.(Client).Name() == name {
@@ -86,7 +88,6 @@ func (c *clientList) GetClient(name string) Client {
 	}
 	return nil
 }
-
 
 //Room is a room name and a linked list of clients in the room.
 type Room struct {
@@ -182,4 +183,8 @@ func (rm Room) GetMessages() []string {
 		m[x] = fmt.Sprint(i.Value)
 	}
 	return m
+}
+
+func (rm Room) NumberOfClients() int {
+	return rm.clients.count
 }

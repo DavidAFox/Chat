@@ -14,5 +14,7 @@
 "DatabasePassword":"",
 "DatabaseName":"DataFile",
 "DatabaseType":"",
-"Origin":""
+"Origin":"",
+"MaxRooms":100,
+"DisableNewAccounts": false
 }

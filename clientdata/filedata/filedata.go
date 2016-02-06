@@ -26,7 +26,7 @@ func NewFactory(fileName string) *Factory {
 
 //Create makes a new ClientData object using the factories filedata as its source.
 func (cdf *Factory) Create(name string) clientdata.ClientData {
-	cd := clientdata.NewDataAccess(name, cdf.data)
+	cd := clientdata.NewDataAccess(name, cdf.data, false)
 	return cd
 }
 

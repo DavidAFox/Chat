@@ -49,6 +49,7 @@ var ErrInvalidName = errors.New("clientdata: Invalid Name.")
 var ErrBlocking = errors.New("clientdata: You are already blocking them.")
 var ErrFriend = errors.New("clientdata: They are already on your friends list.")
 var ErrNotFriend = errors.New("clientdata: They are not on your friends list.")
+var ErrAccountCreationDisabled = errors.New("clientdata: New account creation has been disabled.")
 
 //encrypt encrypts the password and returns the encrypted version.
 func Encrypt(pword string) string {
@@ -70,17 +71,19 @@ func ValidateName(name string) bool {
 
 //DataAccess is the default type of ClientData.
 type DataAccess struct {
-	name string
-	data DataStore
+	name               string
+	data               DataStore
+	disableNewAccounts bool
 }
 
 //NewDataAccess creates a new DataAccess.  Names must be alphanumeric only.
-func NewDataAccess(name string, data DataStore) *DataAccess {
+func NewDataAccess(name string, data DataStore, disableNewAccounts bool) *DataAccess {
 	cdd := new(DataAccess)
 	if ValidateName(name) {
 		cdd.name = name
 	}
 	cdd.data = data
+	cdd.disableNewAccounts = disableNewAccounts
 	return cdd
 }
 
@@ -141,6 +144,9 @@ func (cdd *DataAccess) LastOnline(name string) (time.Time, error) {
 
 //NewClient adds the client to the database with the provided password.
 func (cdd *DataAccess) NewClient(pword string) error {
+	if cdd.disableNewAccounts {
+		return ErrAccountCreationDisabled
+	}
 	exists, err := cdd.ClientExists(cdd.name)
 	switch {
 	case err != nil:

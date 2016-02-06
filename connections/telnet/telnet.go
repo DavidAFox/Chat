@@ -90,6 +90,10 @@ func TelnetRegister(conn net.Conn, cd clientdata.ClientData) {
 				}
 				cd.SetName(name)
 				err := cd.NewClient(pword1)
+				if err == clientdata.ErrAccountCreationDisabled {
+					_, err = io.WriteString(conn, "New account creation has been disabled.")
+					return
+				}
 				if err != nil {
 					log.Println("Error registering client", err)
 					_, err = io.WriteString(conn, "Error creating account.\n\r")

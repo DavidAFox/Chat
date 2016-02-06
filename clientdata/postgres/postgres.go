@@ -26,7 +26,7 @@ type Factory struct {
 
 //Create returns a ClientData object of the type for the factory.
 func (cdf *Factory) Create(name string) clientdata.ClientData {
-	return clientdata.NewDataAccess(name, cdf.database)
+	return clientdata.NewDataAccess(name, cdf.database, false)
 }
 
 //Postgres is a type of datastore using a postgresql database.

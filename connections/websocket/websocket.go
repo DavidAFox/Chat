@@ -135,6 +135,8 @@ func Register(socket Socket, options *Options, cmd *Input) {
 	case err == clientdata.ErrClientExists:
 		_ = sendMessage(socket, &Message{Type: "Register", Success: false, Code: CLIENT_ALREADY_EXISTS, Data: "A client with that name already exists."})
 		return
+	case err == clientdata.ErrAccountCreationDisabled:
+		_ = sendMessage(socket, &Message{Type: "Register", Success: false, Code: 0, Data: "Account creation has been disabled."})
 	case err != nil:
 		log.Println(err)
 		_ = sendMessage(socket, &Message{Type: "Register", Success: false, Code: SERVER_ERROR, Data: "Server error please try again."})

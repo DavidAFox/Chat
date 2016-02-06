@@ -1,16 +1,32 @@
 package room
 
-import ()
+import (
+	"errors"
+	"log"
+	"time"
+)
+
+var ERR_MAX_ROOMS = errors.New("Can't create room.  There are already the maximum number of rooms.")
+var ERR_ROOM_EXISTS = errors.New("A room with that name already exits.")
 
 //RoomList is a linked list of rooms with a mutex.
 type RoomList struct {
+	maxRooms int
 	*clientList
+	closeChannel chan bool
 }
 
 //NewRoomList returns an empty RoomList.
-func NewRoomList() *RoomList {
-	rl := &RoomList{NewClientList()}
-	rl.Add(NewRoom("Lobby"))//create default room
+func NewRoomList(maxRooms int) *RoomList {
+	if maxRooms < 1 {
+		maxRooms = 1
+	}
+	rl := &RoomList{maxRooms, NewClientList(), make(chan bool, 1)}
+	err := rl.Add(NewRoom("Lobby")) //create default room
+	if err != nil {
+		log.Println(err)
+	}
+	go rl.roomManager()
 	return rl
 }
 
@@ -56,4 +72,44 @@ func (rml *RoomList) CloseEmpty() {
 			rml.Remove(x)
 		}
 	}
+}
+
+func (rml *RoomList) Add(cl Client) error {
+	if rml.clientList.count >= rml.maxRooms {
+		return ERR_MAX_ROOMS
+	}
+	if rml.clientList.Present(cl.Name()) {
+		return ERR_ROOM_EXISTS
+	}
+	rml.clientList.Add(cl)
+	return nil
+}
+
+func (rml *RoomList) roomManager() {
+	for {
+		for i := rml.clientList.Front(); i != nil; {
+			if rm, ok := i.Value.(*Room); ok {
+				if rm.clients.count < 1 && rm.Name() != "Lobby" {
+					x := i
+					i = i.Next()
+					rml.clientList.Remove(x)
+					rml.clientList.count--
+				} else {
+					i = i.Next()
+				}
+			} else {
+				log.Println("non-room in roomlist: ", i.Value.(Client).Name())
+			}
+		}
+		select {
+		case <-rml.closeChannel:
+			return
+		default:
+			time.Sleep(1 * time.Minute)
+		}
+	}
+}
+
+func (rml *RoomList) Close() {
+	rml.closeChannel <- true
 }

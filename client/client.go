@@ -29,6 +29,7 @@ Codes - will be found in header under "code" if the action fails and indicates t
 41 Room does not exist
 42 Client not found
 43 Client is blocking you
+44 Already at max rooms
 50 Server Error
 60 Unsupported Method
 70 Invalid Command
@@ -237,6 +238,12 @@ func (cl *Client) Block(name string) *Response {
 	if cl.Name() == name {
 		return NewResponse(false, 32, "You can't block yourself.", nil)
 	}
+	if ex, err := cl.data.ClientExists(name); !ex {
+		if err != nil {
+			log.Println(err)
+		}
+		return NewResponse(false, 42, "No client with that name exists.", nil)
+	}
 	err := cl.data.Block(name)
 	switch {
 	case err == clientdata.ErrBlocking:
@@ -259,6 +266,12 @@ func (cl *Client) Friend(name string) *Response {
 	}
 	if cl.Name() == name {
 		return NewResponse(false, 37, "You can't friend yourself.", nil)
+	}
+	if ex, err := cl.data.ClientExists(name); !ex {
+		if err != nil {
+			log.Println(err)
+		}
+		return NewResponse(false, 42, "No client with that name exists.", nil)
 	}
 	err := cl.data.Friend(name)
 	switch {
@@ -409,14 +422,20 @@ func (cl *Client) Join(rmName string) *Response {
 	if !clientdata.ValidateName(rmName) {
 		return NewResponse(false, 20, "Invalid room name.  Name may only contain alphanumeric characters.", nil)
 	}
-	cl.LeaveRoom()
 	rm := cl.rooms.FindRoom(rmName)
 	if rm == nil {
 		newRoom := room.NewRoom(rmName)
+		err := cl.rooms.Add(newRoom)
+		if err == room.ERR_MAX_ROOMS {
+			return NewResponse(false, 44, "Cannot create Room.  The server is already at the maximum number of rooms.", nil)
+		} else if err != nil {
+			return NewResponse(false, 50, "Server Error while joining room.", nil)
+		}
+		cl.LeaveRoom()
 		cl.room = newRoom
 		cl.room.Add(cl)
-		cl.rooms.Add(cl.room)
 	} else {
+		cl.LeaveRoom()
 		cl.room = rm
 		rm.Add(cl)
 	}
