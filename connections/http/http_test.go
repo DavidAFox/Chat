@@ -113,7 +113,7 @@ func newTestRoomHandler(t *testing.T) *RoomHandler {
 	if err != nil {
 		t.Fatal("Error creating handler: ", err)
 	}
-	roomlist := room.NewRoomList()
+	roomlist := room.NewRoomList(100)
 	wsh := NewRoomHandler(Options{Origin: "test origin", ChatLog: new(bytes.Buffer), RoomList: roomlist, DataFactory: factory, ClientFactory: client.NewFactory(roomlist, new(bytes.Buffer), factory)})
 	return wsh
 }

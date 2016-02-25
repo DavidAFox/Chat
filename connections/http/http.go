@@ -105,6 +105,9 @@ func (h *RoomHandler) GetConnection(rq *http.Request) *Connection {
 
 //ServeHTTP handles requests other than those sent to the REST handler.
 func (h *RoomHandler) ServeHTTP(w http.ResponseWriter, rq *http.Request) {
+	if rq.Body != nil {
+		defer rq.Body.Close()
+	}
 	path := strings.Split(rq.URL.Path, "/")
 	if rq.Method == "OPTIONS" {
 		w.Header().Set("Access-Control-Allow-Origin", h.origin)

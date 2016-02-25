@@ -254,7 +254,7 @@ func NewOptionsForTesting() *Options {
 	o.ClientFactory = new(testClientFactory)
 	o.ChatLog = bytes.NewBufferString("")
 	o.DataFactory, _ = newTestMemDataFactory()
-	o.RoomList = room.NewRoomList()
+	o.RoomList = room.NewRoomList(100)
 	return o
 }
 

@@ -17,9 +17,15 @@ var messageTests = []struct {
 	{"dsAI!kd", "839skdl9", "12:00am", "12:00am [dsAI!kd]: 839skdl9"},
 }
 
+type Client interface {
+	Name() string
+	Recieve(Message)
+	Equals(Client) bool
+}
+
 type MTestClient struct {
 	name     string
-	messages *messageList
+	messages *MessageList
 }
 
 func (cl *MTestClient) Equals(other Client) bool {
@@ -38,7 +44,7 @@ func (cl *MTestClient) Name() string {
 }
 
 func TestRestMessageString(t *testing.T) {
-	msg := new(restMessage)
+	msg := new(RestMessage)
 	var err error
 	for _, tt := range messageTests {
 		msg.Name = tt.name
@@ -54,19 +60,19 @@ func TestRestMessageString(t *testing.T) {
 }
 
 func MTestClientMessageString(t *testing.T) {
-	msg := new(clientMessage)
+	msg := new(SendMessage)
 	cl := new(MTestClient)
 	var err error
 	for _, tt := range messageTests {
 		cl.name = tt.name
-		msg.Sender = cl
-		msg.text = tt.text
-		msg.time, err = time.Parse("3:04pm", tt.time)
+		msg.Sender = cl.Name()
+		msg.Text = tt.text
+		msg.Time, err = time.Parse("3:04pm", tt.time)
 		if err != nil {
 			fmt.Println("Error Parsing Time: ", err)
 		}
 		if msg.String() != tt.result {
-			t.Errorf("msg.String() %q,%q,%v => %q, want %q", msg.Sender.Name(), msg.text, msg.time, msg.String(), tt.result)
+			t.Errorf("msg.String() %q,%q,%v => %q, want %q", msg.Sender, msg.Text, msg.Time, msg.String(), tt.result)
 		}
 	}
 }

@@ -3,14 +3,14 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/davidafox/chat/chattest"
-	"github.com/davidafox/chat/clientdata"
-	httpcon "github.com/davidafox/chat/http"
-	"github.com/davidafox/chat/room"
-	"github.com/davidafox/chat/testclient/testclientdata"
+	//	"github.com/davidafox/chat/chattest"
+	//	"github.com/davidafox/chat/clientdata"
+	//	httpcon "github.com/davidafox/chat/connections/http"
+	//	"github.com/davidafox/chat/room"
+	//	"github.com/davidafox/chat/testclient/testclientdata"
 	"net"
-	"net/http"
-	"net/http/httptest"
+	//	"net/http"
+	//	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
@@ -68,6 +68,7 @@ func TestConfigure(t *testing.T) {
 	}
 }
 
+/*
 //NewTestHTTPServer sets up an http test server with the roomhandler and resthandler.
 func NewTestHTTPServer(rooms *room.RoomList, chl *os.File, conf *config, df clientdata.Factory) *httptest.Server {
 	m := http.NewServeMux()
@@ -79,13 +80,14 @@ func NewTestHTTPServer(rooms *room.RoomList, chl *os.File, conf *config, df clie
 	hs.Start()
 	return hs
 }
-
+*/
 //getIPPort is a helper function that returns the ip and port out of a string of the form http://ip:port.
 func getIPPort(h string) (string, string, error) {
 	h = strings.TrimPrefix(h, "http://")
 	return net.SplitHostPort(h)
 }
 
+/*
 //TestHttpAndTelnet runs a test with http, telnet and rest clients.
 func TestHTTPAndTelnet(t *testing.T) {
 	rooms := room.NewRoomList()
@@ -114,7 +116,8 @@ func TestHTTPAndTelnet(t *testing.T) {
 	ts.Stop()
 	hs.Close()
 }
-
+*/
+/*
 //TestHTTP runs a test with only http clients.
 func TestHTTP(t *testing.T) {
 	rooms := room.NewRoomList()
@@ -140,7 +143,8 @@ func TestHTTP(t *testing.T) {
 	te.Run()
 	hs.Close()
 }
-
+*/
+/*
 //TestTelnet runs a test with only telnet clients.
 func TestTelnet(t *testing.T) {
 	rooms := room.NewRoomList()
@@ -161,3 +165,4 @@ func TestTelnet(t *testing.T) {
 	te.Run()
 	ts.Stop()
 }
+*/
