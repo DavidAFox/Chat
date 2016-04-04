@@ -103,6 +103,37 @@ Response-
 If Header "success" = "true"
 Body- []messages sent to the user since the last time Get Messages was sent. messages contain a type field to specify the type of message.
 
+type = "Server"
+Fields:
+	Text string
+	Type string
+
+type = "Send"
+Fields:
+	Text       string
+	Time       time.Time
+	TimeString string
+	Sender     string
+	Type       string
+
+type = "Join"
+Fields:
+	Subject string
+	Text    string
+	Type    string
+
+type = "Tell"
+Fields:
+	Text       string
+	TimeString string
+	Time       time.Time
+	Sender     string
+	Reciever   string
+	ToReciever bool
+	Type       string
+
+
+
 "Server"
 Text - the text of the message
 "Send"

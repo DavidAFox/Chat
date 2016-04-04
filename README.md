@@ -1,4 +1,4 @@
-Chat is a basic go chat server.
+Chat is a go chat server.
 
 ### Features
 * multiple rooms
@@ -10,7 +10,7 @@ Chat is a basic go chat server.
 
 ### Config
 
-There is a sample Config file provided.  The server will look for a config file in its folder. A different location can be specified using the -config _filename_ flag.  The server will start the connection types that have ports specified for them in the config.
+There is a sample Config file provided.  The server will look for a config file in its folder. A different location can be specified using the -config _filename_ flag.  The server will start the connection types that have ports specified for them in the config.  Origin is the origin of the site serving the web interface to allow the CORS to work propery.
 
 ### Commands
 /tell _user_ _message_ - send the message to the specified user  
@@ -26,7 +26,7 @@ There is a sample Config file provided.  The server will look for a config file 
 
 ### Database
 
-The server currently supports only a Postgresql database.  If no database is specified the user information will instead be stored in a file.
+The server currently supports only a Postgresql database.  If no database is specified the user information will instead be stored in a file.  New database types can be added by creating an adapter that meets the DataStore interface in clientdata.go and then adding an entry in the datafactory package.
 
 Browser http [client](https://github.com/DavidAFox/ChatWebInterface)
 

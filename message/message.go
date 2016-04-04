@@ -24,6 +24,13 @@ type MessageList struct {
 	*sync.Mutex
 }
 
+func (ml MessageList) PushBack(v Message) *list.Element {
+	if ml.Len() > 99 {
+		ml.Remove(ml.Front())
+	}
+	return ml.List.PushBack(v)
+}
+
 //newMessageList creates a new message list.
 func NewMessageList() *MessageList {
 	return &MessageList{list.New(), new(sync.Mutex)}

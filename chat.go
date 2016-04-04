@@ -63,7 +63,7 @@ func configure(filename string) (c *config) {
 
 type telnetServer struct {
 	rooms       *room.RoomList
-	chatlog     *os.File
+	chatlog     io.WriteCloser
 	cls         chan bool
 	ln          net.Listener
 	done        bool
@@ -71,7 +71,7 @@ type telnetServer struct {
 }
 
 //NewTelnetServerTLS creates a telnet server using TLS.
-func NewTelnetServerTLS(rooms *room.RoomList, chl *os.File, c *config, datafactory clientdata.Factory) *telnetServer {
+func NewTelnetServerTLS(rooms *room.RoomList, chl io.WriteCloser, c *config, datafactory clientdata.Factory) *telnetServer {
 	ts := new(telnetServer)
 	var err error
 	cert, err := tls.LoadX509KeyPair(c.CertFile, c.KeyFile)
@@ -92,7 +92,7 @@ func NewTelnetServerTLS(rooms *room.RoomList, chl *os.File, c *config, datafacto
 	return ts
 }
 
-func NewTelnetServer(rooms *room.RoomList, chl *os.File, c *config, datafactory clientdata.Factory) *telnetServer {
+func NewTelnetServer(rooms *room.RoomList, chl io.WriteCloser, c *config, datafactory clientdata.Factory) *telnetServer {
 	ts := new(telnetServer)
 	var err error
 	ts.ln, err = net.Listen("tcp", net.JoinHostPort(c.ListeningIP, c.ListeningPort))
@@ -133,7 +133,7 @@ Outerloop:
 }
 
 //serverHTTPTLS sets up the http handlers and then runs ListenAndServeTLS.
-func serverHTTPTLS(rooms *room.RoomList, chl *os.File, c *config, df clientdata.Factory) {
+func serverHTTPTLS(rooms *room.RoomList, chl io.WriteCloser, c *config, df clientdata.Factory) {
 	mux := http.NewServeMux()
 	room := chathttp.NewRoomHandler(chathttp.Options{RoomList: rooms, ChatLog: chl, DataFactory: df, ClientFactory: client.NewFactory(rooms, chl, df), Origin: c.Origin})
 	mux.Handle("/", room)
@@ -146,7 +146,7 @@ func serverHTTPTLS(rooms *room.RoomList, chl *os.File, c *config, df clientdata.
 }
 
 //serverHTTP sets up the http handlers and then runs ListenAndServe
-func serverHTTP(rooms *room.RoomList, chl *os.File, c *config, df clientdata.Factory) {
+func serverHTTP(rooms *room.RoomList, chl io.WriteCloser, c *config, df clientdata.Factory) {
 	mux := http.NewServeMux()
 	room := chathttp.NewRoomHandler(chathttp.Options{RoomList: rooms, ChatLog: chl, DataFactory: df, ClientFactory: client.NewFactory(rooms, chl, df), Origin: c.Origin})
 	mux.Handle("/", room)
@@ -162,11 +162,11 @@ func serverHTTP(rooms *room.RoomList, chl *os.File, c *config, df clientdata.Fac
 //restHandler is the http.Handler for handling the REST API
 type restHandler struct {
 	rooms *room.RoomList
-	chl   *os.File
+	chl   io.WriteCloser
 }
 
 //newRestHandler initializes a new restHandler.
-func newRestHandler(rooms *room.RoomList, chl *os.File) *restHandler {
+func newRestHandler(rooms *room.RoomList, chl io.WriteCloser) *restHandler {
 	m := new(restHandler)
 	m.rooms = rooms
 	m.chl = chl
@@ -222,16 +222,33 @@ func (m *restHandler) getMessages(room *room.Room, w http.ResponseWriter) {
 	}
 }
 
+type NoLog struct {
+}
+
+func (nl NoLog) Write(b []byte) (int, error) {
+	return len(b), nil
+}
+
+func (nl NoLog) Close() error {
+	return nil
+}
+
 func main() {
 	loc := flag.String("config", "Config", "the location of the config file")
 	flag.Parse()
 	c := configure(*loc)
 	rooms := room.NewRoomList(c.MaxRooms)
 	defer rooms.Close()
-	chl, err := os.OpenFile(c.LogFile, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0666)
-	defer chl.Close()
-	if err != nil {
-		log.Panic(err)
+	var chl io.WriteCloser
+	var err error
+	if c.LogFile != "" {
+		chl, err = os.OpenFile(c.LogFile, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0666)
+		defer chl.Close()
+		if err != nil {
+			log.Panic(err)
+		}
+	} else {
+		chl = new(NoLog)
 	}
 	df, err := datafactory.New(c.DatabaseType, c.DatabaseLogin, c.DatabasePassword, c.DatabaseName, c.DatabaseIP, c.DatabasePort, c.DisableNewAccounts)
 	if err != nil {
