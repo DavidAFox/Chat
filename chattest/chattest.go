@@ -1,8 +1,8 @@
 package chattest
 
 import (
-	"github.com/davidafox/chat/testclient"
-	"github.com/davidafox/gentest"
+	"github.com/DavidAFox/Chat/testclient"
+	"github.com/DavidAFox/gentest"
 	"io"
 	"os"
 	"testing"

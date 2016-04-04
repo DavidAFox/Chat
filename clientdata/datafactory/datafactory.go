@@ -2,9 +2,9 @@ package datafactory
 
 import (
 	//Add new data packages here.
-	"github.com/davidafox/chat/clientdata"
-	"github.com/davidafox/chat/clientdata/filedata"
-	"github.com/davidafox/chat/clientdata/postgres"
+	"github.com/DavidAFox/Chat/clientdata"
+	"github.com/DavidAFox/Chat/clientdata/filedata"
+	"github.com/DavidAFox/Chat/clientdata/postgres"
 )
 
 //NewFactory returns a factory to make client data objects of the type kind and using the database.  Currently supports "postgres" as a kind, using a Postgres database.

@@ -2,7 +2,7 @@ package testclient
 
 import (
 	"fmt"
-	"github.com/davidafox/gentest"
+	"github.com/DavidAFox/gentest"
 	"math/rand"
 )
 

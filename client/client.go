@@ -2,10 +2,10 @@ package client
 
 import (
 	"fmt"
-	"github.com/davidafox/chat/clientdata"
-	"github.com/davidafox/chat/connections"
-	"github.com/davidafox/chat/message"
-	"github.com/davidafox/chat/room"
+	"github.com/DavidAFox/Chat/clientdata"
+	"github.com/DavidAFox/Chat/connections"
+	"github.com/DavidAFox/Chat/message"
+	"github.com/DavidAFox/Chat/room"
 	"io"
 	"log"
 	"strconv"

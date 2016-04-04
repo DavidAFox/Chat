@@ -3,7 +3,7 @@ package room
 import (
 	"container/list"
 	"fmt"
-	"github.com/davidafox/chat/message"
+	"github.com/DavidAFox/Chat/message"
 	"sort"
 	"sync"
 )

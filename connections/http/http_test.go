@@ -2,10 +2,10 @@ package http
 
 import (
 	"bytes"
-	"github.com/davidafox/chat/client"
-	"github.com/davidafox/chat/clientdata"
-	"github.com/davidafox/chat/clientdata/filedata"
-	"github.com/davidafox/chat/room"
+	"github.com/DavidAFox/Chat/client"
+	"github.com/DavidAFox/Chat/clientdata"
+	"github.com/DavidAFox/Chat/clientdata/filedata"
+	"github.com/DavidAFox/Chat/room"
 	"net/http"
 	"net/http/httptest"
 	"strings"

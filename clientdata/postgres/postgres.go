@@ -5,7 +5,7 @@ package postgres
 import (
 	"database/sql"
 	"fmt"
-	"github.com/davidafox/chat/clientdata"
+	"github.com/DavidAFox/Chat/clientdata"
 	_ "github.com/lib/pq"
 	"log"
 	"strconv"

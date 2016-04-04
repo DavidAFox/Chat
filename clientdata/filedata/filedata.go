@@ -3,7 +3,7 @@ package filedata
 import (
 	"encoding/json"
 	"errors"
-	"github.com/davidafox/chat/clientdata"
+	"github.com/DavidAFox/Chat/clientdata"
 	"log"
 	"os"
 	"sync"

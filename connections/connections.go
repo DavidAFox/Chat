@@ -1,7 +1,7 @@
 package connections
 
 import (
-	"github.com/davidafox/chat/message"
+	"github.com/DavidAFox/Chat/message"
 )
 
 type Client interface {
