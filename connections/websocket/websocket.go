@@ -106,8 +106,10 @@ func Login(socket Socket, options *Options, cmd *Input) bool {
 	if !logged {
 		_ = sendMessage(socket, &Message{Type: "Login", Success: false, Code: USER_NAME_PWRD_DONT_MATCH, Data: "User name and password do not match."})
 		return false
-	} else {
-
+	}
+	if options.RoomList.GetClient(name) != nil {
+		_ = sendMessage(socket, &Message{Type: "Login", Success: false, Code: 0, Data: "That user is already logged in."})
+		return false
 	}
 	err = sendMessage(socket, &Message{Type: "Login", Success: true, Code: 0, Data: "Welcome"})
 	if err != nil {

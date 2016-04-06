@@ -292,6 +292,15 @@ func (h *RoomHandler) Login(w http.ResponseWriter, rq *http.Request) {
 	}
 	enc := json.NewEncoder(w)
 	if success {
+		if h.rooms.GetClient(l[0]) != nil {
+			w.Header().Set("success", "false")
+			w.Header().Set("code", "21")
+			err = enc.Encode("That user is already logged in.")
+			if err != nil {
+				log.Println("Error encoding in login: ", err)
+			}
+			return
+		}
 		w.Header().Set("success", "true")
 		c := h.New(h.clients, l[0], h.rooms, h.chl, data)
 		c.cMap.Add(c)

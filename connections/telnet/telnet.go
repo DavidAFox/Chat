@@ -149,9 +149,13 @@ func TelnetLogin(conn net.Conn, rooms *room.RoomList, chl io.Writer, cd clientda
 			logged, err = cd.Authenticate(pword)
 			if err != nil {
 				log.Println("Error Autheticating: ", err)
-			}
-			if logged == false {
-				io.WriteString(conn, "User name and Password do not match.\n\r")
+			} else {
+				if logged == false {
+					io.WriteString(conn, "User name and Password do not match.\n\r")
+				} else if rooms.GetClient(name) != nil {
+					io.WriteString(conn, "That user is already logged in.\n\r")
+					logged = false
+				} 
 			}
 		} else {
 			_, err = io.WriteString(conn, "Invalid name.  Name must be alphanumeric characters only.")
